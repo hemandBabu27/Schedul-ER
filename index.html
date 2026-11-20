@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Schedul-ER</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Layout: month grid on the left, reminders and the selected day on the right; stacks on phones.
+   Look: plain white, Apple-style neutrals, system blue for actions, red for today. Single light theme by request. */
+:root{
+  --bg:#ffffff;
+  --ink:#1d1d1f;
+  --ink-2:#6e6e73;
+  --ink-3:#aeaeb2;
+  --line:#e5e5ea;
+  --fill:#f5f5f7;
+  --accent:#007aff;
+  --today:#ff3b30;
+  --font:"Source Sans 3","Source Sans Pro",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.4;
+  padding-block:20px 48px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1120px;margin:0 auto}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.c-blue{--c:#007aff;--t:#e5f1ff}
+.c-red{--c:#ff3b30;--t:#ffebea}
+.c-orange{--c:#ff9500;--t:#fff1dc}
+.c-green{--c:#34c759;--t:#e3f7e8}
+.c-purple{--c:#af52de;--t:#f4e8fb}
+.c-gray{--c:#8e8e93;--t:#efeff1}
+
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+h1{margin:0;font-size:34px;line-height:1.1;font-weight:700;letter-spacing:-.01em}
+h1 span{font-weight:400;color:var(--ink-2)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.btn{border:0;background:var(--fill);border-radius:10px;padding:8px 14px;font-weight:600;color:var(--accent);line-height:1.3}
+.btn:hover{background:#ececf0}
+.btn.icon{padding:8px 10px;display:inline-flex;align-items:center}
+.btn.primary{background:var(--accent);color:#fff}
+.btn.primary:hover{background:#0a6cdb}
+.btn.danger{color:var(--today)}
+.btn[disabled]{opacity:.45;cursor:default}
+
+.note{background:var(--fill);border-radius:10px;padding:10px 14px;font-size:15px;color:var(--ink-2);margin-bottom:16px}
+
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:36px;align-items:start}
+@media(max-width:900px){.layout{grid-template-columns:minmax(0,1fr);gap:28px}}
+
+.dow,.days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.dow div{padding:6px 8px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.days{border-top:1px solid var(--line);border-left:1px solid var(--line)}
+.cell{min-height:108px;padding:6px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:4px;min-width:0;cursor:pointer}
+.cell:hover{background:#fafafc}
+.cell.sel{background:var(--fill)}
+/* Fill the complete date block with its event color */
+.cell.event-fill{background:var(--event-tint,#fff)}
+.cell.event-fill:hover{filter:saturate(1.05)}
+.cell.event-fill.sel{box-shadow:inset 0 0 0 2px var(--event-color)}
+.cell.event-fill.today .num{background:var(--today);color:#fff}
+
+.num{align-self:flex-start;width:28px;height:28px;border-radius:50%;border:0;background:none;font-weight:600;font-size:15px;display:grid;place-items:center;color:var(--ink);padding:0}
+.cell.out .num{color:var(--ink-3)}
+.cell.today .num{background:var(--today);color:#fff}
+.chips{display:flex;flex-direction:column;gap:3px;min-width:0}
+.chip{display:flex;align-items:center;gap:6px;border:0;text-align:left;background:none;border-radius:6px;padding:2px 6px;font-size:13px;line-height:1.25;min-width:0;width:100%;color:var(--ink)}
+.chip i{flex:none;width:7px;height:7px;border-radius:50%;background:var(--c)}
+.chip b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip.on{background:var(--t)}
+.chip.far i,.dots i.far{background:none;box-shadow:inset 0 0 0 1.5px var(--c)}
+.chip.past,.dots i.past{opacity:.45}
+.more{font-size:12px;color:var(--ink-2);padding-left:6px}
+.dots{display:none;gap:3px;justify-content:center;flex-wrap:wrap}
+.dots i{width:6px;height:6px;border-radius:50%;background:var(--c)}
+.legend{margin:12px 0 0;font-size:14px;color:var(--ink-2)}
+@media(max-width:640px){
+  .cell{min-height:58px;padding:4px 2px;align-items:center}
+  .chips{display:none}
+  .dots{display:flex}
+  .num{align-self:center}
+  .dow div{text-align:center;padding:6px 0;font-size:11px}
+  h1{font-size:28px}
+}
+
+.side{display:flex;flex-direction:column;gap:32px;min-width:0}
+.side h2{margin:0;font-size:22px;line-height:1.2;font-weight:700;display:flex;align-items:center;gap:8px}
+.badge{font-size:13px;font-weight:600;background:var(--today);color:#fff;border-radius:999px;padding:1px 9px;font-variant-numeric:tabular-nums}
+.sub{margin:4px 0 8px;color:var(--ink-2);font-size:15px}
+.list{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:10px 0}
+.row:hover{background:#fafafc}
+.bar{flex:none;width:4px;align-self:stretch;border-radius:2px;background:var(--c)}
+.txt{flex:1;min-width:0}
+.t{font-weight:600;overflow-wrap:anywhere}
+.m{font-size:14px;color:var(--ink-2);overflow-wrap:anywhere}
+.when{flex:none;font-size:13px;font-weight:600;color:var(--ink-2);background:var(--fill);border-radius:999px;padding:3px 10px;white-space:nowrap}
+.when.soon{color:var(--accent);background:#e5f1ff}
+.when.now{background:var(--today);color:#fff}
+.empty{color:var(--ink-2);padding:12px 0;font-size:15px;border-bottom:1px solid var(--line)}
+.side .btn{margin-top:12px}
+
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:20;
+  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.sheet{background:#fff;border-radius:16px;width:100%;max-width:420px;max-height:100%;overflow:auto;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.sheet h3{margin:0 0 6px;font-size:22px;line-height:1.2}
+.sheet label,.lg{display:block;font-size:13px;font-weight:600;color:var(--ink-2);margin:14px 0 5px}
+.sheet input[type=text],.sheet input[type=email],.sheet input[type=password],.sheet input[type=date],.sheet input[type=time],.sheet textarea{
+  width:100%;font:inherit;font-size:16px;background:var(--fill);border:1px solid transparent;border-radius:10px;padding:10px 12px;color:var(--ink);min-width:0}
+.sheet textarea{resize:vertical;min-height:72px}
+.sheet input:focus,.sheet textarea:focus{outline:none;border-color:var(--accent);background:#fff}
+.sheet input:disabled,.sheet textarea:disabled{opacity:.7}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.swatches{display:flex;gap:12px;flex-wrap:wrap;padding:4px 0}
+.sheet .sw{position:relative;display:block;margin:0}
+.sw input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.sw span{display:block;width:28px;height:28px;border-radius:50%;background:var(--c)}
+.sw input:checked+span{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--c)}
+.sw input:focus-visible+span{outline:2px solid var(--accent);outline-offset:5px}
+.actions{display:flex;gap:8px;margin-top:20px;justify-content:flex-end;flex-wrap:wrap}
+.actions .left{margin-right:auto}
+.sheet .actions .btn{margin:0}
+.err{color:var(--today);font-size:14px;margin-top:10px}
+.err:empty{display:none}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:#fff;border-radius:999px;padding:10px 18px;font-size:15px;z-index:30;max-width:calc(100% - 32px);text-align:center}
+@media(prefers-reduced-motion:no-preference){.btn,.cell,.row{transition:background-color .12s}}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <h1 id="monthTitle"></h1>
+    <div class="controls">
+      <button class="btn icon" id="prev" type="button" aria-label="Previous month"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+      <button class="btn" id="todayBtn" type="button">Today</button>
+      <button class="btn icon" id="next" type="button" aria-label="Next month"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg></button>
+      <button class="btn" id="outBtn" type="button" hidden>Sign out</button>
+      <button class="btn primary" id="addBtn" type="button" disabled>Add event</button>
+    </div>
+  </header>
+
+  <div class="note">View the calendar freely — sign in only when you want to add, edit, or delete events.</div>
+  <div class="note" id="note" role="status" hidden></div>
+
+  <div class="layout">
+    <section aria-label="Month view">
+      <div class="dow" aria-hidden="true"><div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div></div>
+      <div class="days" id="days"></div>
+      <p class="legend">Shaded events are inside their 2-week reminder window. Outlined dots are further away.</p>
+    </section>
+
+    <aside class="side">
+      <section aria-labelledby="remHead">
+        <h2 id="remHead">Reminders <span class="badge" id="remCount" hidden></span></h2>
+        <p class="sub">Each event appears here 14 days before its day.</p>
+        <ul class="list" id="remList"></ul>
+      </section>
+      <section aria-labelledby="selTitle">
+        <h2 id="selTitle"></h2>
+        <ul class="list" id="selList"></ul>
+        <button class="btn" id="addSel" type="button" hidden>Add to this day</button>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <form class="sheet" id="form" role="dialog" aria-modal="true" aria-labelledby="formTitle" novalidate>
+    <h3 id="formTitle">New event</h3>
+    <label for="fTitle">Title</label>
+    <input id="fTitle" type="text" maxlength="120" autocomplete="off" required>
+    <div class="two">
+      <div><label for="fDate">Date</label><input id="fDate" type="date" required></div>
+      <div><label for="fTime">Time (optional)</label><input id="fTime" type="time"></div>
+    </div>
+    <label for="fNotes">Notes</label>
+    <textarea id="fNotes" maxlength="1000"></textarea>
+    <div class="lg" id="colorLbl">Colour</div>
+    <div class="swatches" id="swatches" role="radiogroup" aria-labelledby="colorLbl"></div>
+    <div class="err" id="fErr" role="alert"></div>
+    <div class="actions">
+      <button class="btn danger left" id="delBtn" type="button" hidden>Delete</button>
+      <button class="btn" id="editLoginBtn" type="button" hidden>Sign in to edit</button>
+      <button class="btn" id="cancelBtn" type="button">Cancel</button>
+      <button class="btn primary" id="saveBtn" type="submit">Add</button>
+    </div>
+  </form>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+<div class="overlay" id="authOverlay" hidden>
+  <form class="sheet" id="authForm" role="dialog" aria-modal="true" aria-labelledby="authTitle" novalidate>
+    <h3 id="authTitle">Sign in</h3>
+    <p class="sub">Anyone can view the calendar. Sign in is required only to make changes.</p>
+    <label for="aEmail">Email</label>
+    <input id="aEmail" type="email" autocomplete="username">
+    <label for="aPass">Password</label>
+    <input id="aPass" type="password" autocomplete="current-password">
+    <div class="err" id="aErr" role="alert"></div>
+    <div class="actions"><button class="btn primary" id="aBtn" type="submit">Sign in</button></div>
+  </form>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+
+<script>
+(function(){
+'use strict';
+var REMIND_DAYS=14;
+var COLORS=['blue','red','orange','green','purple','gray'];
+var COLOR_NAMES={blue:'Blue',red:'Red',orange:'Orange',green:'Green',purple:'Purple',gray:'Gray'};
+var $=function(id){return document.getElementById(id)};
+
+function h(tag,props){
+  var el=document.createElement(tag);
+  if(props){for(var k in props){var v=props[k];
+    if(v==null||v===false)continue;
+    if(k==='class')el.className=v;
+    else if(k==='text')el.textContent=v;
+    else if(k.slice(0,2)==='on')el.addEventListener(k.slice(2),v);
+    else el.setAttribute(k,v===true?'':v);
+  }}
+  for(var i=2;i<arguments.length;i++){var c=arguments[i];if(c!=null)el.append(c)}
+  return el;
+}
+
+var pad=function(n){return String(n).padStart(2,'0')};
+var key=function(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
+var parseKey=function(k){var p=k.split('-').map(Number);return new Date(p[0],p[1]-1,p[2])};
+var daysBetween=function(a,b){return Math.round((parseKey(b)-parseKey(a))/86400000)};
+var todayKey=function(){return key(new Date())};
+var fmtLong=new Intl.DateTimeFormat('en-IN',{weekday:'long',day:'numeric',month:'long'});
+var fmtShort=new Intl.DateTimeFormat('en-IN',{weekday:'short',day:'numeric',month:'short'});
+var fmtFull=new Intl.DateTimeFormat('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+var fmtMonth=new Intl.DateTimeFormat('en-IN',{month:'long'});
+function fmtTime(t){var hr=+t.slice(0,2),mi=t.slice(3,5);return (hr%12||12)+':'+mi+' '+(hr>=12?'PM':'AM')}
+
+var db=null, canWrite=false, loaded=false, loadTimer=null;
+var events=[];
+var view=new Date(); view=new Date(view.getFullYear(),view.getMonth(),1);
+var selected=todayKey();
+var lastToday=todayKey();
+var editingId=null, lastFocus=null, delArmed=false, delTimer=null, toastTimer=null;
+
+function status(date){var d=daysBetween(todayKey(),date);return d<0?'past':(d<=REMIND_DAYS?'on':'far')}
+function cmp(a,b){return a.date<b.date?-1:a.date>b.date?1:(a.time||'')<(b.time||'')?-1:(a.time||'')>(b.time||'')?1:a.title.localeCompare(b.title)}
+function eventsByDate(){var m={};events.forEach(function(e){(m[e.date]=m[e.date]||[]).push(e)});return m}
+function showNote(t){var n=$('note');if(t){n.textContent=t;n.hidden=false}else{n.hidden=true}}
+
+/* ---------- rendering ---------- */
+function chip(e){
+  return h('button',{type:'button',class:'chip c-'+e.color+' '+status(e.date),title:e.title,
+    onclick:function(ev){ev.stopPropagation();openForm(e.id)}},
+    h('i'),h('b',{text:e.title}));
+}
+
+function renderGrid(){
+  var y=view.getFullYear(),m=view.getMonth();
+  var t=$('monthTitle');t.textContent=fmtMonth.format(view)+' ';t.append(h('span',{text:String(y)}));
+  var lead=new Date(y,m,1).getDay(), dim=new Date(y,m+1,0).getDate();
+  var rows=Math.ceil((lead+dim)/7), by=eventsByDate(), tk=todayKey();
+  var frag=document.createDocumentFragment();
+  for(var i=0;i<rows*7;i++){
+    (function(){
+      var d=new Date(y,m,1-lead+i), k=key(d), list=by[k]||[];
+      var cls='cell'+(d.getMonth()!==m?' out':'')+(k===tk?' today':'')+(k===selected?' sel':'');
+      if(list.length)cls+=' event-fill';
+      var label=fmtFull.format(d)+(list.length?', '+list.length+(list.length===1?' event':' events'):'');
+      var cellProps={class:cls,onclick:function(ev){select(k,ev.detail===0&&ev.target.classList.contains('num'))}};
+      if(list.length){
+        var firstColor=list[0].color||'blue';
+        cellProps.style='--event-color:var(--'+firstColor+');--event-tint:var(--t)';
+        /* CSS custom vars are defined by the color class; keep the event's tint scoped to this cell. */
+        cellProps.class+=' c-'+firstColor;
+      }
+      var cell=h('div',cellProps,
+        h('button',{type:'button',class:'num',text:String(d.getDate()),'aria-label':label,'aria-pressed':k===selected?'true':'false'}));
+      if(list.length){
+        var chips=h('div',{class:'chips'});
+        list.slice(0,2).forEach(function(e){chips.append(chip(e))});
+        if(list.length>2)chips.append(h('div',{class:'more',text:'+'+(list.length-2)+' more'}));
+        var dots=h('div',{class:'dots'});
+        list.slice(0,4).forEach(function(e){dots.append(h('i',{class:'c-'+e.color+' '+status(e.date)}))});
+        cell.append(chips,dots);
+      }
+      frag.append(cell);
+    })();
+  }
+  $('days').replaceChildren(frag);
+}
+
+function eventRow(e,withWhen){
+  var d=daysBetween(todayKey(),e.date);
+  var meta=withWhen?fmtShort.format(parseKey(e.date))+(e.time?' · '+fmtTime(e.time):''):(e.time?fmtTime(e.time):'All day');
+  var txt=h('div',{class:'txt'},h('div',{class:'t',text:e.title}),h('div',{class:'m',text:meta}));
+  if(!withWhen&&e.notes)txt.append(h('div',{class:'m',text:e.notes.length>140?e.notes.slice(0,140)+'…':e.notes}));
+  var row=h('button',{type:'button',class:'row c-'+e.color,onclick:function(){openForm(e.id)}},h('span',{class:'bar'}),txt);
+  if(withWhen){
+    var lbl=d===0?'Today':d===1?'Tomorrow':'In '+d+' days';
+    row.append(h('span',{class:'when'+(d===0?' now':d<=3?' soon':''),text:lbl}));
+  }
+  return h('li',null,row);
+}
+
+function renderSide(){
+  var tk=todayKey();
+  var rem=events.filter(function(e){var d=daysBetween(tk,e.date);return d>=0&&d<=REMIND_DAYS});
+  var rl=$('remList');rl.replaceChildren();
+  if(rem.length){rem.forEach(function(e){rl.append(eventRow(e,true))})}
+  else rl.append(h('li',{class:'empty',text:loaded?'Nothing in the next 2 weeks.':'Reminders will appear here.'}));
+  var bc=$('remCount');bc.hidden=!rem.length;bc.textContent=String(rem.length);
+
+  $('selTitle').textContent=fmtLong.format(parseKey(selected));
+  var sl=$('selList');sl.replaceChildren();
+  var day=events.filter(function(e){return e.date===selected});
+  if(day.length)day.forEach(function(e){sl.append(eventRow(e,false))});
+  else sl.append(h('li',{class:'empty',text:'Nothing planned.'}));
+  $('addSel').hidden=false;
+  $('addBtn').disabled=false;
+}
+
+function render(){events.sort(cmp);renderGrid();renderSide()}
+
+function select(k,refocus){
+  selected=k;
+  var d=parseKey(k);
+  if(d.getMonth()!==view.getMonth()||d.getFullYear()!==view.getFullYear())view=new Date(d.getFullYear(),d.getMonth(),1);
+  render();
+  if(refocus){var n=document.querySelector('.cell.sel .num');if(n)n.focus()}
+}
+
+/* ---------- form ---------- */
+var fTitle=$('fTitle'),fDate=$('fDate'),fTime=$('fTime'),fNotes=$('fNotes'),fErr=$('fErr'),saveBtn=$('saveBtn'),delBtn=$('delBtn');
+
+COLORS.forEach(function(c,i){
+  $('swatches').append(h('label',{class:'sw c-'+c},
+    h('input',{type:'radio',name:'color',value:c,'aria-label':COLOR_NAMES[c],checked:i===0}),h('span')));
+});
+function getColor(){var r=document.querySelector('input[name=color]:checked');return r?r.value:'blue'}
+function setColor(c){var r=document.querySelector('input[name=color][value='+c+']');if(r)r.checked=true}
+function setErr(t){fErr.textContent=t||''}
+function disarm(){delArmed=false;clearTimeout(delTimer);delBtn.textContent='Delete'}
+
+function openForm(id,dateKey){
+  var ev=id?events.find(function(e){return e.id===id}):null;
+  if(id&&!ev)return;
+  var ro=!canWrite;
+  lastFocus=document.activeElement;
+  editingId=id||null;
+  $('formTitle').textContent=ro?'Event':(ev?'Edit event':'New event');
+  fTitle.value=ev?ev.title:'';
+  fDate.value=ev?ev.date:(dateKey||selected);
+  fTime.value=ev?ev.time:'';
+  fNotes.value=ev?ev.notes:'';
+  setColor(ev?ev.color:'blue');
+  setErr('');disarm();
+  [fTitle,fDate,fTime,fNotes].concat([].slice.call(document.querySelectorAll('input[name=color]'))).forEach(function(el){el.disabled=ro});
+  saveBtn.hidden=ro;saveBtn.textContent=ev?'Save':'Add';
+  delBtn.hidden=ro||!ev;
+  $('editLoginBtn').hidden=!ro;
+  $('cancelBtn').textContent=ro?'Close':'Cancel';
+  $('overlay').hidden=false;
+  (ro?$('cancelBtn'):fTitle).focus();
+}
+function closeForm(){
+  $('overlay').hidden=true;editingId=null;disarm();
+  if(lastFocus&&lastFocus.focus&&document.contains(lastFocus))lastFocus.focus();
+}
+
+function toast(t){
+  var el=$('toast');el.textContent=t;el.hidden=false;
+  clearTimeout(toastTimer);toastTimer=setTimeout(function(){el.hidden=true},2600);
+}
+function errMsg(ex){
+  var c=ex&&ex.code;
+  if(c==='invalid_argument')return "You're signed out or don't have permission to change this calendar.";
+  if(c==='quota_exceeded')return 'The calendar is full. Delete some old events and try again.';
+  if(c==='resource_exhausted')return 'Too many changes at once. Wait a moment and try again.';
+  return "Couldn't save. Check your connection and try again.";
+}
+function withRetry(fn){
+  return fn().catch(function(ex){
+    if(ex&&ex.code==='unavailable')return new Promise(function(r){setTimeout(r,500+Math.random()*500)}).then(fn);
+    throw ex;
+  });
+}
+
+$('form').addEventListener('submit',function(e){
+  e.preventDefault();
+  if(!db||!canWrite)return;
+  var title=fTitle.value.trim(), date=fDate.value;
+  if(!title){setErr('Enter a title.');fTitle.focus();return}
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){setErr('Pick a date.');fDate.focus();return}
+  var existing=editingId?events.find(function(x){return x.id===editingId}):null;
+  var data={title:title,date:date,time:fTime.value||'',notes:fNotes.value.trim(),color:getColor(),
+    createdAt:existing&&existing.createdAt?existing.createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+  var wasEdit=!!existing, id=editingId;
+  saveBtn.disabled=true;setErr('');
+  withRetry(function(){return saveEvent(wasEdit?id:null,data)})
+    .then(function(){
+      closeForm();toast(wasEdit?'Event updated':'Event added');
+      var d=parseKey(date);view=new Date(d.getFullYear(),d.getMonth(),1);selected=date;render();
+    })
+    .catch(function(ex){setErr(errMsg(ex))})
+    .then(function(){saveBtn.disabled=false});
+});
+
+delBtn.addEventListener('click',function(){
+  if(!db||!canWrite||!editingId)return;
+  if(!delArmed){delArmed=true;delBtn.textContent='Tap again to delete';clearTimeout(delTimer);delTimer=setTimeout(disarm,4000);return}
+  var id=editingId;delBtn.disabled=true;
+  withRetry(function(){return deleteEvent(id)})
+    .then(function(){closeForm();toast('Event deleted')})
+    .catch(function(ex){setErr(errMsg(ex))})
+    .then(function(){delBtn.disabled=false});
+});
+
+$('editLoginBtn').addEventListener('click',function(){closeForm();openAuth()});
+$('cancelBtn').addEventListener('click',closeForm);
+$('overlay').addEventListener('click',function(e){if(e.target===$('overlay'))closeForm()});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!$('overlay').hidden)closeForm()});
+
+/* ---------- controls ---------- */
+$('prev').addEventListener('click',function(){view=new Date(view.getFullYear(),view.getMonth()-1,1);renderGrid()});
+$('next').addEventListener('click',function(){view=new Date(view.getFullYear(),view.getMonth()+1,1);renderGrid()});
+$('todayBtn').addEventListener('click',function(){select(todayKey(),false)});
+$('addBtn').addEventListener('click',function(){if(canWrite)openForm(null,selected);else openAuth()});
+$('addSel').addEventListener('click',function(){if(canWrite)openForm(null,selected);else openAuth()});
+
+/* Re-render when the day rolls over so reminder windows stay correct. */
+function checkDay(){var t=todayKey();if(t!==lastToday){lastToday=t;render()}}
+setInterval(checkDay,60000);
+document.addEventListener('visibilitychange',function(){if(!document.hidden)checkDay()});
+
+/* ---------- Supabase: shared events + sign-in ---------- */
+var SUPABASE_URL='YOUR-SUPABASE-PROJECT-URL';
+var SUPABASE_ANON_KEY='YOUR-SUPABASE-PUBLISHABLE-KEY';
+var TABLE='events';
+var sb=null, session=null, channel=null;
+
+function sbErr(res){
+  var s=res.status, c=res.error&&res.error.code;
+  if(c==='42501'||s===401||s===403)return {code:'invalid_argument'};
+  if(!s||s>=500)return {code:'unavailable'};
+  return {code:'other'};
+}
+function unwrap(res){if(res.error)throw sbErr(res);return res}
+
+function fetchAll(){
+  if(!sb)return Promise.resolve();
+  return sb.from(TABLE).select('*').order('date',{ascending:true}).then(function(res){
+    if(res.error){if(!loaded)showNote("Couldn't load events. Check your connection and try again.");return}
+    events=res.data.map(function(v){
+      return {id:String(v.id),title:String(v.title||'').slice(0,120),date:String(v.date||'').slice(0,10),
+        time:/^\d{2}:\d{2}/.test(v.time||'')?String(v.time).slice(0,5):'',notes:String(v.notes||''),
+        color:COLORS.indexOf(v.color)>=0?v.color:'blue',createdAt:String(v.created_at||'')};
+    }).filter(function(e){return e.title&&/^\d{4}-\d{2}-\d{2}$/.test(e.date)});
+    loaded=true;showNote('');render();
+  });
+}
+
+function saveEvent(id,data){
+  if(!canWrite||!sb)return Promise.reject({code:'invalid_argument'});
+  var row={title:data.title,date:data.date,time:data.time,notes:data.notes,color:data.color,updated_at:new Date().toISOString()};
+  var q=id?sb.from(TABLE).update(row).eq('id',id).select('id'):sb.from(TABLE).insert(row);
+  return q.then(unwrap).then(function(res){
+    if(id&&(!res.data||!res.data.length))throw {code:'invalid_argument'};
+    return fetchAll();
+  });
+}
+function deleteEvent(id){
+  if(!canWrite||!sb)return Promise.reject({code:'invalid_argument'});
+  return sb.from(TABLE).delete().eq('id',id).then(unwrap).then(function(){return fetchAll()});
+}
+
+function startRealtime(){
+  if(channel||!sb)return;
+  channel=sb.channel('events-changes')
+    .on('postgres_changes',{event:'*',schema:'public',table:TABLE},function(){fetchAll()})
+    .subscribe();
+}
+function stopRealtime(){if(channel&&sb){sb.removeChannel(channel)}channel=null}
+
+function openAuth(){$('authOverlay').hidden=false;$('aEmail').focus()}
+
+function setSession(s){
+  session=s;canWrite=!!s;db=sb;
+  $('outBtn').hidden=!s;
+  $('editLoginBtn').hidden=canWrite;
+  if(s){
+    $('authOverlay').hidden=true;showNote('Loading events…');
+    startRealtime();fetchAll();
+  }else{
+    stopRealtime();$('authOverlay').hidden=true;
+    if(!$('overlay').hidden)closeForm();
+    fetchAll();
+  }
+  render();
+}
+
+$('authForm').addEventListener('submit',function(e){
+  e.preventDefault();
+  var email=$('aEmail').value.trim(), pass=$('aPass').value;
+  if(!email||!pass){$('aErr').textContent='Enter your email and password.';return}
+  $('aBtn').disabled=true;$('aErr').textContent='';
+  sb.auth.signInWithPassword({email:email,password:pass})
+    .then(function(res){
+      if(res.error)$('aErr').textContent=res.error.message||"Couldn't sign in.";
+      else $('aPass').value='';
+    })
+    .catch(function(){$('aErr').textContent="Couldn't reach the server. Check your connection."})
+    .then(function(){$('aBtn').disabled=false});
+});
+$('outBtn').addEventListener('click',function(){if(sb)sb.auth.signOut()});
+
+/* Fallback refresh in case realtime is off: every minute and when the tab comes back. */
+setInterval(function(){if(sb)fetchAll()},60000);
+document.addEventListener('visibilitychange',function(){if(!document.hidden&&sb)fetchAll()});
+
+render();
+
+if(!window.supabase){
+  showNote("Couldn't load the Supabase library. Check your connection and reload.");
+}else if(!SUPABASE_URL||!SUPABASE_ANON_KEY||SUPABASE_URL.indexOf('YOUR-')>=0||SUPABASE_ANON_KEY.indexOf('YOUR-')>=0){
+  showNote('Supabase is not set up yet. Add this project’s Supabase URL and publishable key to index.html.');
+}else{
+  try{
+    sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+    sb.auth.onAuthStateChange(function(ev,s){setTimeout(function(){setSession(s)},0)});
+    sb.auth.getSession().then(function(res){setSession(res.data.session)}).catch(function(){setSession(null)});
+  }catch(err){
+    showNote('Supabase settings look invalid. Check this project’s URL and publishable key.');
+  }
+}
+})();
+</script>
+
+</body>
+</html>
