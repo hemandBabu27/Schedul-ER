@@ -186,10 +186,19 @@ h1 span{font-weight:400;color:var(--ink-2)}
     <h3 id="formTitle">New event</h3>
     <label for="fTitle">Title</label>
     <input id="fTitle" type="text" maxlength="120" autocomplete="off" required>
-    <div class="two">
+    <label style="display:flex;align-items:center;gap:8px;margin:14px 0 8px;color:var(--ink);font-size:15px">
+      <input id="fRangeMode" type="checkbox"> Add this event across a date range
+    </label>
+    <div id="singleDateRow" class="two">
       <div><label for="fDate">Date</label><input id="fDate" type="date" required></div>
       <div><label for="fTime">Time (optional)</label><input id="fTime" type="time"></div>
     </div>
+    <div id="rangeDateRow" class="two" hidden>
+      <div><label for="fStartDate">Start date</label><input id="fStartDate" type="date"></div>
+      <div><label for="fEndDate">End date</label><input id="fEndDate" type="date"></div>
+    </div>
+    <div id="rangeHint" class="sub" hidden>Creates one event for every date, inclusive, with the same title, time, notes and colour.</div>
+    <div id="rangeTimeRow" hidden><label for="fRangeTime">Time (optional)</label><input id="fRangeTime" type="time"></div>
     <label for="fNotes">Notes</label>
     <textarea id="fNotes" maxlength="1000"></textarea>
     <div class="lg" id="colorLbl">Colour</div>
@@ -368,8 +377,14 @@ function openForm(id,dateKey){
   fTime.value=ev?ev.time:'';
   fNotes.value=ev?ev.notes:'';
   setColor(ev?ev.color:'blue');
+  $('fRangeMode').checked=false;
+  $('fStartDate').value=dateKey||selected;
+  $('fEndDate').value=dateKey||selected;
+  $('fRangeTime').value=ev?ev.time:'';
+  $('singleDateRow').hidden=false;$('rangeDateRow').hidden=true;$('rangeHint').hidden=true;$('rangeTimeRow').hidden=true;
+  $('fRangeMode').disabled=ro;
   setErr('');disarm();
-  [fTitle,fDate,fTime,fNotes].concat([].slice.call(document.querySelectorAll('input[name=color]'))).forEach(function(el){el.disabled=ro});
+  [fTitle,fDate,fTime,fNotes,$('fStartDate'),$('fEndDate'),$('fRangeTime')].concat([].slice.call(document.querySelectorAll('input[name=color]'))).forEach(function(el){el.disabled=ro});
   saveBtn.hidden=ro;saveBtn.textContent=ev?'Save':'Add';
   delBtn.hidden=ro||!ev;
   $('editLoginBtn').hidden=!ro;
@@ -403,18 +418,20 @@ function withRetry(fn){
 $('form').addEventListener('submit',function(e){
   e.preventDefault();
   if(!db||!canWrite)return;
-  var title=fTitle.value.trim(), date=fDate.value;
+  var title=fTitle.value.trim(), range=$('fRangeMode').checked;
   if(!title){setErr('Enter a title.');fTitle.focus();return}
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){setErr('Pick a date.');fDate.focus();return}
+  var start=range?$('fStartDate').value:fDate.value, end=range?$('fEndDate').value:start;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{4}-\d{2}-\d{2}$/.test(end)){setErr('Choose valid start and end dates.');return}
+  if(end<start){setErr('End date must be on or after the start date.');$('fEndDate').focus();return}
   var existing=editingId?events.find(function(x){return x.id===editingId}):null;
-  var data={title:title,date:date,time:fTime.value||'',notes:fNotes.value.trim(),color:getColor(),
+  var data={title:title,date:start,time:range?$('fRangeTime').value:(fTime.value||''),notes:fNotes.value.trim(),color:getColor(),
     createdAt:existing&&existing.createdAt?existing.createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
   var wasEdit=!!existing, id=editingId;
   saveBtn.disabled=true;setErr('');
-  withRetry(function(){return saveEvent(wasEdit?id:null,data)})
+  withRetry(function(){return range&&!wasEdit?saveEventSeries(start,end,data):saveEvent(wasEdit?id:null,data)})
     .then(function(){
-      closeForm();toast(wasEdit?'Event updated':'Event added');
-      var d=parseKey(date);view=new Date(d.getFullYear(),d.getMonth(),1);selected=date;render();
+      closeForm();toast(wasEdit?'Event updated':range?'Events added for date range':'Event added');
+      var d=parseKey(start);view=new Date(d.getFullYear(),d.getMonth(),1);selected=start;render();
     })
     .catch(function(ex){setErr(errMsg(ex))})
     .then(function(){saveBtn.disabled=false});
@@ -430,6 +447,15 @@ delBtn.addEventListener('click',function(){
     .then(function(){delBtn.disabled=false});
 });
 
+$('fRangeMode').addEventListener('change',function(){
+  var on=this.checked;
+  $('singleDateRow').hidden=on;
+  $('rangeDateRow').hidden=!on;
+  $('rangeHint').hidden=!on;
+  $('rangeTimeRow').hidden=!on;
+  if(on){$('fStartDate').value=fDate.value||selected;$('fEndDate').value=fDate.value||selected;$fTime.value='';}
+  else fTime.value=$('fRangeTime').value;
+});
 $('editLoginBtn').addEventListener('click',function(){closeForm();openAuth()});
 $('loginBtn').addEventListener('click',openAuth);
 $('cancelBtn').addEventListener('click',closeForm);
@@ -484,6 +510,15 @@ function saveEvent(id,data){
     if(id&&(!res.data||!res.data.length))throw {code:'invalid_argument'};
     return fetchAll();
   });
+}
+function saveEventSeries(start,end,data){
+  if(!canWrite||!sb)return Promise.reject({code:'invalid_argument'});
+  var rows=[], cursor=parseKey(start), last=parseKey(end), stamp=new Date().toISOString();
+  while(cursor<=last){
+    rows.push({calendar_email:activeCalendar,title:data.title,date:key(cursor),time:data.time,notes:data.notes,color:data.color,updated_at:stamp});
+    cursor.setDate(cursor.getDate()+1);
+  }
+  return sb.from(TABLE).insert(rows).then(unwrap).then(fetchAll);
 }
 function deleteEvent(id){
   if(!canWrite||!sb)return Promise.reject({code:'invalid_argument'});
