@@ -150,12 +150,13 @@ h1 span{font-weight:400;color:var(--ink-2)}
       <button class="btn icon" id="prev" type="button" aria-label="Previous month"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
       <button class="btn" id="todayBtn" type="button">Today</button>
       <button class="btn icon" id="next" type="button" aria-label="Next month"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg></button>
+      <button class="btn" id="loginBtn" type="button">Sign in</button>
       <button class="btn" id="outBtn" type="button" hidden>Sign out</button>
       <button class="btn primary" id="addBtn" type="button" disabled>Add event</button>
     </div>
   </header>
 
-  <div class="note">View the calendar freely — sign in only when you want to add, edit, or delete events.</div>
+  <div class="note" id="calendarInfo">Sign in with a shared team email to open its calendar. Each email has its own calendar.</div>
   <div class="note" id="note" role="status" hidden></div>
 
   <div class="layout">
@@ -249,7 +250,7 @@ var fmtFull=new Intl.DateTimeFormat('en-IN',{weekday:'long',day:'numeric',month:
 var fmtMonth=new Intl.DateTimeFormat('en-IN',{month:'long'});
 function fmtTime(t){var hr=+t.slice(0,2),mi=t.slice(3,5);return (hr%12||12)+':'+mi+' '+(hr>=12?'PM':'AM')}
 
-var db=null, canWrite=false, loaded=false, loadTimer=null;
+var db=null, canWrite=false, loaded=false, loadTimer=null, activeCalendar='';
 var events=[];
 var view=new Date(); view=new Date(view.getFullYear(),view.getMonth(),1);
 var selected=todayKey();
@@ -430,6 +431,7 @@ delBtn.addEventListener('click',function(){
 });
 
 $('editLoginBtn').addEventListener('click',function(){closeForm();openAuth()});
+$('loginBtn').addEventListener('click',openAuth);
 $('cancelBtn').addEventListener('click',closeForm);
 $('overlay').addEventListener('click',function(e){if(e.target===$('overlay'))closeForm()});
 document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!$('overlay').hidden)closeForm()});
@@ -462,7 +464,8 @@ function unwrap(res){if(res.error)throw sbErr(res);return res}
 
 function fetchAll(){
   if(!sb)return Promise.resolve();
-  return sb.from(TABLE).select('*').order('date',{ascending:true}).then(function(res){
+  if(!activeCalendar){events=[];loaded=true;showNote('Sign in with an email to view that email calendar.');render();return Promise.resolve();}
+  return sb.from(TABLE).select('*').eq('calendar_email',activeCalendar).order('date',{ascending:true}).then(function(res){
     if(res.error){if(!loaded)showNote("Couldn't load events. Check your connection and try again.");return}
     events=res.data.map(function(v){
       return {id:String(v.id),title:String(v.title||'').slice(0,120),date:String(v.date||'').slice(0,10),
@@ -475,8 +478,8 @@ function fetchAll(){
 
 function saveEvent(id,data){
   if(!canWrite||!sb)return Promise.reject({code:'invalid_argument'});
-  var row={title:data.title,date:data.date,time:data.time,notes:data.notes,color:data.color,updated_at:new Date().toISOString()};
-  var q=id?sb.from(TABLE).update(row).eq('id',id).select('id'):sb.from(TABLE).insert(row);
+  var row={calendar_email:activeCalendar,title:data.title,date:data.date,time:data.time,notes:data.notes,color:data.color,updated_at:new Date().toISOString()};
+  var q=id?sb.from(TABLE).update(row).eq('id',id).eq('calendar_email',activeCalendar).select('id'):sb.from(TABLE).insert(row);
   return q.then(unwrap).then(function(res){
     if(id&&(!res.data||!res.data.length))throw {code:'invalid_argument'};
     return fetchAll();
@@ -484,13 +487,14 @@ function saveEvent(id,data){
 }
 function deleteEvent(id){
   if(!canWrite||!sb)return Promise.reject({code:'invalid_argument'});
-  return sb.from(TABLE).delete().eq('id',id).select('id').then(unwrap).then(function(res){if(!res.data||!res.data.length)throw {code:'invalid_argument'};return fetchAll()});
+  return sb.from(TABLE).delete().eq('id',id).eq('calendar_email',activeCalendar).select('id').then(unwrap).then(function(res){if(!res.data||!res.data.length)throw {code:'invalid_argument'};return fetchAll()});
 }
 
 function startRealtime(){
-  if(channel||!sb)return;
-  channel=sb.channel('events-changes')
-    .on('postgres_changes',{event:'*',schema:'public',table:TABLE},function(){fetchAll()})
+  if(channel&&sb){sb.removeChannel(channel);channel=null;}
+  if(!sb||!activeCalendar)return;
+  channel=sb.channel('events-changes-'+activeCalendar)
+    .on('postgres_changes',{event:'*',schema:'public',table:TABLE,filter:'calendar_email=eq.'+activeCalendar},function(){fetchAll()})
     .subscribe();
 }
 function stopRealtime(){if(channel&&sb){sb.removeChannel(channel)}channel=null}
@@ -498,7 +502,9 @@ function stopRealtime(){if(channel&&sb){sb.removeChannel(channel)}channel=null}
 function openAuth(){$('authOverlay').hidden=false;$('aEmail').focus()}
 
 function setSession(s){
-  session=s;canWrite=!!s;db=sb;
+  session=s;canWrite=!!s;db=sb;activeCalendar=s&&s.user&&s.user.email?String(s.user.email).trim().toLowerCase():'';
+  $('loginBtn').hidden=!!s;
+  $('calendarInfo').textContent=s?'Calendar: '+activeCalendar+' — events are shared with anyone signed into this email.':'Sign in with a shared team email to open its calendar. Each email has its own calendar.';
   $('outBtn').hidden=!s;
   $('editLoginBtn').hidden=canWrite;
   if(s){
