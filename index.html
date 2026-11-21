@@ -152,6 +152,7 @@ h1 span{font-weight:400;color:var(--ink-2)}
       <button class="btn icon" id="next" type="button" aria-label="Next month"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg></button>
       <button class="btn" id="loginBtn" type="button">Sign in</button>
       <button class="btn" id="outBtn" type="button" hidden>Sign out</button>
+      <button class="btn danger" id="bulkBtn" type="button" disabled>Bulk delete</button>
       <button class="btn primary" id="addBtn" type="button" disabled>Add event</button>
     </div>
   </header>
@@ -179,6 +180,20 @@ h1 span{font-weight:400;color:var(--ink-2)}
       </section>
     </aside>
   </div>
+</div>
+
+<div class="overlay" id="bulkOverlay" hidden>
+  <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="bulkTitle">
+    <h3 id="bulkTitle">Bulk delete events</h3>
+    <p class="sub">Select events to delete. This cannot be undone.</p>
+    <div class="actions" style="justify-content:flex-start;margin:8px 0">
+      <button class="btn" id="bulkSelectAll" type="button">Select all</button>
+      <button class="btn" id="bulkSelectNone" type="button">Clear selection</button>
+    </div>
+    <div id="bulkList" style="max-height:50vh;overflow:auto;border-top:1px solid var(--line)"></div>
+    <p class="sub" id="bulkCount">0 selected</p><div class="err" id="bulkErr"></div>
+    <div class="actions"><button class="btn" id="bulkCancel" type="button">Cancel</button><button class="btn danger" id="bulkDeleteConfirm" type="button" disabled>Delete selected</button></div>
+  </section>
 </div>
 
 <div class="overlay" id="overlay" hidden>
@@ -340,7 +355,7 @@ function renderSide(){
   if(day.length)day.forEach(function(e){sl.append(eventRow(e,false))});
   else sl.append(h('li',{class:'empty',text:'Nothing planned.'}));
   $('addSel').hidden=false;
-  $('addBtn').disabled=false;
+  $('addBtn').disabled=false;$('bulkBtn').disabled=!canWrite;
 }
 
 function render(){events.sort(cmp);renderGrid();renderSide()}
@@ -462,6 +477,16 @@ $('cancelBtn').addEventListener('click',closeForm);
 $('overlay').addEventListener('click',function(e){if(e.target===$('overlay'))closeForm()});
 document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!$('overlay').hidden)closeForm()});
 
+/* ---------- bulk delete ---------- */
+var bulkSelected={};
+function updateBulkCount(){var n=Object.keys(bulkSelected).filter(function(id){return bulkSelected[id]}).length;$('bulkCount').textContent=n+' selected';$('bulkDeleteConfirm').disabled=!n||!canWrite;}
+function openBulk(){if(!canWrite)return;bulkSelected={};$('bulkErr').textContent='';var list=$('bulkList');list.replaceChildren();if(!events.length){list.append(h('p',{class:'empty',text:'No events to delete.'}));}events.slice().sort(cmp).forEach(function(ev){var label=h('label',{style:'display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--line);margin:0;color:var(--ink);font-size:15px'});var cb=h('input',{type:'checkbox',value:ev.id});cb.addEventListener('change',function(){bulkSelected[ev.id]=cb.checked;updateBulkCount()});label.append(cb,h('span',null,h('strong',{text:ev.title}),h('small',{style:'display:block;color:var(--ink-2)'},fmtFull.format(parseKey(ev.date))+(ev.time?' · '+fmtTime(ev.time):''))));list.append(label)});$('bulkOverlay').hidden=false;updateBulkCount();}
+$('bulkBtn').addEventListener('click',openBulk);
+$('bulkSelectAll').addEventListener('click',function(){Array.from($('bulkList').querySelectorAll('input[type=checkbox]')).forEach(function(cb){cb.checked=true;bulkSelected[cb.value]=true});updateBulkCount()});
+$('bulkSelectNone').addEventListener('click',function(){Array.from($('bulkList').querySelectorAll('input[type=checkbox]')).forEach(function(cb){cb.checked=false;bulkSelected[cb.value]=false});updateBulkCount()});
+$('bulkCancel').addEventListener('click',function(){$('bulkOverlay').hidden=true});
+$('bulkOverlay').addEventListener('click',function(e){if(e.target===$('bulkOverlay'))$('bulkOverlay').hidden=true});
+$('bulkDeleteConfirm').addEventListener('click',function(){var ids=Object.keys(bulkSelected).filter(function(id){return bulkSelected[id]});if(!ids.length||!canWrite)return;if(!confirm('Delete '+ids.length+' selected event(s)? This cannot be undone.'))return;var btn=$('bulkDeleteConfirm');btn.disabled=true;btn.textContent='Deleting…';$('bulkErr').textContent='';sb.from(TABLE).delete().in('id',ids).eq('calendar_email',activeCalendar).select('id').then(unwrap).then(function(res){if(!res.data||!res.data.length)throw {code:'invalid_argument'};return fetchAll()}).then(function(){$('bulkOverlay').hidden=true;toast('Deleted '+ids.length+' event(s)')}).catch(function(ex){$('bulkErr').textContent=errMsg(ex)}).then(function(){btn.textContent='Delete selected';updateBulkCount()})});
 /* ---------- controls ---------- */
 $('prev').addEventListener('click',function(){view=new Date(view.getFullYear(),view.getMonth()-1,1);renderGrid()});
 $('next').addEventListener('click',function(){view=new Date(view.getFullYear(),view.getMonth()+1,1);renderGrid()});
