@@ -118,7 +118,7 @@ h1 span{font-weight:400;color:var(--ink-2)}
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:20;
   padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
 .sheet{background:#fff;border-radius:16px;width:100%;max-width:420px;max-height:100%;overflow:auto;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
-.sheet h3{margin:0 0 6px;font-size:22px;line-height:1.2}
+.sheet h3{margin:0 0 6px;font-size:22px;line-height:1.2}.sheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}.close-pop{border:0;background:var(--fill);border-radius:50%;width:34px;height:34px;display:grid;place-items:center;font-size:22px;line-height:1;color:var(--ink-2);flex:none}.close-pop:hover{background:#ececf0;color:var(--ink)}
 .sheet label,.lg{display:block;font-size:13px;font-weight:600;color:var(--ink-2);margin:14px 0 5px}
 .sheet input[type=text],.sheet input[type=email],.sheet input[type=password],.sheet input[type=date],.sheet input[type=time],.sheet textarea{
   width:100%;font:inherit;font-size:16px;background:var(--fill);border:1px solid transparent;border-radius:10px;padding:10px 12px;color:var(--ink);min-width:0}
@@ -187,7 +187,7 @@ h1 span{font-weight:400;color:var(--ink-2)}
 
 <div class="overlay" id="bulkOverlay" hidden>
   <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="bulkTitle">
-    <h3 id="bulkTitle">Bulk delete events</h3>
+    <div class="sheet-head"><h3 id="bulkTitle">Bulk delete events</h3><button class="close-pop" type="button" data-close="bulkOverlay" aria-label="Close">×</button></div>
     <p class="sub">Select events to delete. This cannot be undone.</p>
     <div class="actions" style="justify-content:flex-start;margin:8px 0">
       <button class="btn" id="bulkSelectAll" type="button">Select all</button>
@@ -201,7 +201,7 @@ h1 span{font-weight:400;color:var(--ink-2)}
 
 <div class="overlay" id="overlay" hidden>
   <form class="sheet" id="form" role="dialog" aria-modal="true" aria-labelledby="formTitle" novalidate>
-    <h3 id="formTitle">New event</h3>
+    <div class="sheet-head"><h3 id="formTitle">New event</h3><button class="close-pop" type="button" data-close="overlay" aria-label="Close">×</button></div>
     <label for="fTitle">Title</label>
     <input id="fTitle" type="text" maxlength="120" autocomplete="off" required>
     <label style="display:flex;align-items:center;gap:8px;margin:14px 0 8px;color:var(--ink);font-size:15px">
@@ -233,12 +233,12 @@ h1 span{font-weight:400;color:var(--ink-2)}
 <div class="toast" id="toast" role="status" hidden></div>
 <div class="overlay" id="authOverlay" hidden>
   <form class="sheet" id="authForm" role="dialog" aria-modal="true" aria-labelledby="authTitle" novalidate>
-    <h3 id="authTitle">Sign in</h3>
+    <div class="sheet-head"><h3 id="authTitle">Sign in</h3><button class="close-pop" type="button" data-close="authOverlay" aria-label="Close">×</button></div>
     <p class="sub">Anyone can view the calendar. Sign in is required only to make changes.</p>
     <label for="aEmail">Email</label>
     <input id="aEmail" type="email" autocomplete="username">
     <label for="aPass">Password</label>
-    <input id="aPass" type="password" autocomplete="current-password">
+    <div style="display:flex;gap:8px;align-items:center"><input id="aPass" type="password" autocomplete="current-password" style="flex:1;min-width:0"><button class="btn" id="passToggle" type="button" aria-pressed="false">Show</button></div>
     <div class="err" id="aErr" role="alert"></div>
     <div class="actions"><button class="btn primary" id="aBtn" type="submit">Sign in</button></div>
   </form>
@@ -488,6 +488,10 @@ $('bulkBtn').addEventListener('click',openBulk);
 $('bulkSelectAll').addEventListener('click',function(){Array.from($('bulkList').querySelectorAll('input[type=checkbox]')).forEach(function(cb){cb.checked=true;bulkSelected[cb.value]=true});updateBulkCount()});
 $('bulkSelectNone').addEventListener('click',function(){Array.from($('bulkList').querySelectorAll('input[type=checkbox]')).forEach(function(cb){cb.checked=false;bulkSelected[cb.value]=false});updateBulkCount()});
 $('bulkCancel').addEventListener('click',function(){$('bulkOverlay').hidden=true});
+document.querySelectorAll('[data-close]').forEach(function(btn){btn.addEventListener('click',function(){$(btn.getAttribute('data-close')).hidden=true})});
+$('passToggle').addEventListener('click',function(){var show=$('aPass').type==='password';$('aPass').type=show?'text':'password';this.textContent=show?'Hide':'Show';this.setAttribute('aria-pressed',String(show));});
+['bulkOverlay','overlay','authOverlay'].forEach(function(id){$(id).addEventListener('click',function(e){if(e.target===$(id))$(id).hidden=true})});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){['bulkOverlay','overlay','authOverlay'].forEach(function(id){if(!$(id).hidden)$(id).hidden=true})}});
 $('bulkOverlay').addEventListener('click',function(e){if(e.target===$('bulkOverlay'))$('bulkOverlay').hidden=true});
 $('bulkDeleteConfirm').addEventListener('click',function(){var ids=Object.keys(bulkSelected).filter(function(id){return bulkSelected[id]});if(!ids.length||!canWrite)return;if(!confirm('Delete '+ids.length+' selected event(s)? This cannot be undone.'))return;var btn=$('bulkDeleteConfirm');btn.disabled=true;btn.textContent='Deleting…';$('bulkErr').textContent='';sb.from(TABLE).delete().in('id',ids).eq('calendar_email',activeCalendar).select('id').then(unwrap).then(function(res){if(!res.data||!res.data.length)throw {code:'invalid_argument'};return fetchAll()}).then(function(){$('bulkOverlay').hidden=true;toast('Deleted '+ids.length+' event(s)')}).catch(function(ex){$('bulkErr').textContent=errMsg(ex)}).then(function(){btn.textContent='Delete selected';updateBulkCount()})});
 /* ---------- controls ---------- */
