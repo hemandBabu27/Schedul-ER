@@ -23,10 +23,12 @@ This repository intentionally **does not reuse DFC-Calendar's database credentia
    - `color`: text (nullable)
    - `created_at`: timestamptz default now()
    - `updated_at`: timestamptz (nullable)
-3. In `index.html`, replace `YOUR-SUPABASE-PROJECT-URL` and `YOUR-SUPABASE-PUBLISHABLE-KEY` with the new project's URL and publishable key.
-4. Enable email/password authentication and create the editors' accounts.
-5. Configure RLS policies so anonymous users can `SELECT`, while authenticated users can `INSERT`, `UPDATE`, and `DELETE`. Keep write policies restricted to the intended editors.
-6. Deploy the repository to Vercel or GitHub Pages.
+3. In `index.html`, configure this project's Supabase URL and publishable key.
+4. Enable email/password authentication and create accounts for the shared/team email addresses. Users who share one team email and password will see the same calendar; signing in with a different email opens a separate calendar.
+5. Run the SQL migration in `supabase/calendar-email-migration.sql` in Supabase SQL Editor. It adds `calendar_email` and restricts read/write access to the authenticated user's email. If you have existing events, assign their `calendar_email` values before enabling the migration policies.
+6. Deploy to Vercel or GitHub Pages. Supabase Auth persists the session in the browser by default, so users stay signed in after reloads until they sign out or the session expires.
+
+This version is private per email, not public-read. Realtime updates are filtered to the signed-in email calendar.
 
 > Do not put a Supabase service-role key in frontend code.
 
