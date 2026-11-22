@@ -608,6 +608,7 @@ render();
 /* ---------- privacy-friendly unique visitor counter ----------
 // One random browser ID per browser profile; no IP address or fingerprint is collected.
 // Requires a Supabase table named "visitors" (SQL setup is provided separately).
+*/
 function countVisitor(){
   var el=$('visitorCounter');if(!el||!sb)return;
   var visitorId;
