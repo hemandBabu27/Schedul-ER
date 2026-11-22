@@ -228,7 +228,7 @@ h1 span{font-weight:400;color:var(--ink-2)}
     </div>
   </form>
 </div>
-<div id="visitorCounter" style="text-align:center;font-size:11px;color:var(--ink-3);padding:10px 0 0;margin-top:16px" aria-live="polite">Visitors: —</div>
+<div id="visitorCounter" style="text-align:center;font-size:11px;color:var(--ink-3);padding:10px 0 0;margin-top:16px" aria-live="polite">— visitors</div>
 <div class="toast" id="toast" role="status" hidden></div>
 <div class="overlay" id="authOverlay" hidden>
   <form class="sheet" id="authForm" role="dialog" aria-modal="true" aria-labelledby="authTitle" novalidate>
@@ -612,7 +612,7 @@ render();
 function countVisitor(){
   var el=$('visitorCounter');
   if(!el||!sb)return;
-  el.textContent='Visitors: loading…';
+  el.textContent='… visitors';
   var visitorId;
   try{
     visitorId=localStorage.getItem('schedul-er-visitor-id');
@@ -620,7 +620,7 @@ function countVisitor(){
       visitorId=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():('v-'+Date.now()+'-'+Math.random().toString(36).slice(2));
       localStorage.setItem('schedul-er-visitor-id',visitorId);
     }
-  }catch(e){el.textContent='Visitors: unavailable';return}
+  }catch(e){el.textContent='visitors unavailable';return}
   sb.from('visitors').upsert({visitor_id:visitorId},{onConflict:'visitor_id',ignoreDuplicates:true})
     .then(function(res){
       if(res.error)throw res.error;
@@ -628,7 +628,7 @@ function countVisitor(){
     })
     .then(function(res){
       if(res.error)throw res.error;
-      el.textContent='Visitors: '+(res.count||0).toLocaleString();
+      el.textContent=(res.count||0).toLocaleString()+' '+((res.count||0)===1?'visitor':'visitors');
     })
     .catch(function(err){
       console.warn('Visitor counter unavailable. Check the visitors table and RLS policies.',err);
