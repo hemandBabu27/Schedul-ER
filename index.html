@@ -610,7 +610,9 @@ render();
 // Requires a Supabase table named "visitors" (SQL setup is provided separately).
 */
 function countVisitor(){
-  var el=$('visitorCounter');if(!el||!sb)return;
+  var el=$('visitorCounter');
+  if(!el||!sb)return;
+  el.textContent='Visitors: loading…';
   var visitorId;
   try{
     visitorId=localStorage.getItem('schedul-er-visitor-id');
@@ -618,11 +620,20 @@ function countVisitor(){
       visitorId=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():('v-'+Date.now()+'-'+Math.random().toString(36).slice(2));
       localStorage.setItem('schedul-er-visitor-id',visitorId);
     }
-  }catch(e){el.textContent='Visitors';return}
+  }catch(e){el.textContent='Visitors: unavailable';return}
   sb.from('visitors').upsert({visitor_id:visitorId},{onConflict:'visitor_id',ignoreDuplicates:true})
-    .then(function(res){if(res.error)throw res.error;return sb.from('visitors').select('visitor_id',{count:'exact',head:true})})
-    .then(function(res){if(res.error)throw res.error;el.textContent='Visitors: '+(res.count||0).toLocaleString()})
-    .catch(function(){el.textContent='Visitors';});
+    .then(function(res){
+      if(res.error)throw res.error;
+      return sb.from('visitors').select('visitor_id',{count:'exact',head:true});
+    })
+    .then(function(res){
+      if(res.error)throw res.error;
+      el.textContent='Visitors: '+(res.count||0).toLocaleString();
+    })
+    .catch(function(err){
+      console.warn('Visitor counter unavailable. Check the visitors table and RLS policies.',err);
+      el.textContent='Visitors: unavailable';
+    });
 }
 
 if(!window.supabase){
