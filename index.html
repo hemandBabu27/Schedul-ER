@@ -471,9 +471,16 @@ function restoreDeleted(items){
 }
 function errMsg(ex){
   var c=ex&&ex.code;
-  if(c==='invalid_argument')return "You're signed out or don't have permission to change this calendar.";
   if(c==='quota_exceeded')return 'The calendar is full. Delete some old events and try again.';
   if(c==='resource_exhausted')return 'Too many changes at once. Wait a moment and try again.';
+  if(c==='42501'||c==='invalid_argument')return "Supabase permission error: "+(ex.message||"This account is not allowed to change this calendar.")+(c?' ['+c+']':'');
+  if(ex&&ex.message){
+    var msg=ex.message;
+    if(ex.details)msg+=' — '+ex.details;
+    if(ex.hint)msg+=' (Hint: '+ex.hint+')';
+    if(c)msg+=' ['+c+']';
+    return 'Event save failed: '+msg;
+  }
   return "Couldn't save. Check your connection and try again.";
 }
 function withRetry(fn){
@@ -566,10 +573,14 @@ var TABLE='events';
 var sb=null, session=null, channel=null, noticeChannel=null;
 
 function sbErr(res){
-  var s=res.status, c=res.error&&res.error.code;
-  if(c==='42501'||s===401||s===403)return {code:'invalid_argument'};
-  if(!s||s>=500)return {code:'unavailable'};
-  return {code:'other'};
+  var e=res&&res.error||{}, s=res&&res.status;
+  return {
+    code:e.code||((s===401||s===403)?'42501':(!s||s>=500?'unavailable':'other')),
+    message:e.message||'Supabase returned an unknown database error.',
+    details:e.details||'',
+    hint:e.hint||'',
+    status:s||null
+  };
 }
 function unwrap(res){if(res.error)throw sbErr(res);return res}
 
