@@ -114,7 +114,7 @@ h1 span{font-weight:400;color:var(--ink-2)}
 #monthlyReportPanel .btn{margin-top:10px}
 .monthly-report-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .monthly-report-close{border:0;background:var(--fill);border-radius:50%;width:30px;height:30px;font-size:20px;line-height:1;cursor:pointer}
-.noticeboard{margin-top:26px;border-top:1px solid var(--line);padding-top:18px}
+.noticeboard{margin:0;border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff}
 .noticeboard h2{margin:0;font-size:20px}
 .notice-form{display:grid;gap:8px;margin:10px 0 14px}
 .notice-form input,.notice-form textarea{width:100%;font:inherit;font-size:15px;background:var(--fill);border:1px solid var(--line);border-radius:10px;padding:9px 11px;color:var(--ink)}
@@ -238,19 +238,6 @@ h1 span{font-weight:400;color:var(--ink-2)}
     </section>
 
     <aside class="side">
-      <section aria-labelledby="remHead">
-        <h2 id="remHead">Reminders <span class="badge" id="remCount" hidden></span></h2>
-        <p class="sub">Each event appears here 14 days before its day.</p>
-        <ul class="list" id="remList"></ul>
-      </section>
-      <section aria-labelledby="selTitle">
-        <h2 id="selTitle"></h2>
-        <ul class="list" id="selList"></ul>
-        <button class="btn" id="addSel" type="button" hidden>Add to this day</button>
-      </section>
-
-    </aside>
-  </div>
   <section class="noticeboard" aria-labelledby="noticeHead">
     <h2 id="noticeHead">Class noticeboard</h2>
     <p class="sub" id="noticeInfo">Sign in with your TKMCE class account to view and post notices.</p>
@@ -272,6 +259,20 @@ h1 span{font-weight:400;color:var(--ink-2)}
     </form>
     <div id="noticeList" class="list"><p class="empty">Sign in to view class notices.</p></div>
   </section>
+      <section aria-labelledby="remHead">
+        <h2 id="remHead">Reminders <span class="badge" id="remCount" hidden></span></h2>
+        <p class="sub">Each event appears here 14 days before its day.</p>
+        <ul class="list" id="remList"></ul>
+      </section>
+      <section aria-labelledby="selTitle">
+        <h2 id="selTitle"></h2>
+        <ul class="list" id="selList"></ul>
+        <button class="btn" id="addSel" type="button" hidden>Add to this day</button>
+      </section>
+
+    </aside>
+  </div>
+
 </div>
 
 <div class="overlay" id="bulkOverlay" hidden>
