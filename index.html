@@ -312,11 +312,11 @@ h1 span{font-weight:400;color:var(--ink-2)}
     <input id="profilePassword" type="password" minlength="8" autocomplete="new-password" placeholder="New password (at least 8 characters)">
     <input id="profilePasswordConfirm" type="password" minlength="8" autocomplete="new-password" placeholder="Confirm new password">
     <div class="actions"><button class="btn" id="profilePasswordSave" type="button">Update password</button></div>
-    <p class="sub">Your current password is never displayed. If you forget it, contact the administrator because TKMCE IDs are used for calendar mapping, not email verification.</p>
+    <p class="sub">You can change your password here whenever you want. Choose at least 8 characters.</p>
     <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
     <strong>Notifications on this device</strong>
     <p class="sub" id="profileNotifyStatus">Check notification permissions.</p>
-    <div class="actions"><button class="btn" id="profileChromeEnable" type="button">Enable browser notifications</button><button class="btn" id="profilePushToggle" type="button">Enable background push</button></div>
+    <div class="actions"><button class="btn primary" id="profilePushToggle" type="button">Enable notifications</button></div>
   </section>
 </div>
 <div class="overlay" id="authOverlay" hidden>
@@ -780,14 +780,23 @@ function enableBackgroundPush(){
   }).then(function(){button.disabled=false});
 }
 $('pushEnable').addEventListener('click',enableBackgroundPush);
-$('profileChromeEnable').addEventListener('click',function(){
-  if(!('Notification' in window))return;
-  Notification.requestPermission().then(function(){refreshNotifyStatus();refreshProfileNotificationStatus();if(Notification.permission==='granted')scanEventNotifications(events,true)});
-});
 $('profilePushToggle').addEventListener('click',function(){
   var b=this;
   if(!session||!activeClass)return;
   b.disabled=true;
+  if(!('Notification' in window)){
+    $('profileNotifyStatus').textContent='Notifications are not supported by this browser.';
+    b.disabled=false;return;
+  }
+  if(!('serviceWorker' in navigator)||!('PushManager' in window)){
+    Notification.requestPermission().then(function(permission){
+      if(permission==='granted'){
+        refreshNotifyStatus();scanEventNotifications(events,true);
+        $('profileNotifyStatus').textContent='Browser notifications are allowed. Background push is not supported by this browser.';
+      }else $('profileNotifyStatus').textContent='Notifications were not allowed. Check this site’s browser settings.';
+    }).catch(function(){$('profileNotifyStatus').textContent='Could not enable notifications.'}).then(function(){b.disabled=false});
+    return;
+  }
   navigator.serviceWorker.ready.then(function(reg){return reg.pushManager.getSubscription()}).then(function(sub){
     if(!sub){enableBackgroundPush();return}
     return sb.from('push_subscriptions').delete().eq('endpoint',sub.endpoint).then(function(res){
@@ -799,9 +808,11 @@ $('profilePushToggle').addEventListener('click',function(){
 function refreshProfileNotificationStatus(){
   var el=$('profileNotifyStatus'),push=$('profilePushToggle');
   if(!el)return;
-  var chrome=('Notification' in window)&&Notification.permission==='granted';
-  el.textContent='Browser notifications: '+(chrome?'Allowed':'Not enabled')+' · Background push: '+(pushEnabledOnThisDevice?'Enabled on this device':'Not enabled');
-  if(push)push.textContent=pushEnabledOnThisDevice?'Disable background push':'Enable background push';
+  var allowed=('Notification' in window)&&Notification.permission==='granted';
+  if(push)push.textContent=pushEnabledOnThisDevice?'Disable notifications':'Enable notifications';
+  el.textContent=pushEnabledOnThisDevice
+    ?'Notifications are enabled on this device. Background alerts can arrive while the browser is closed.'
+    :allowed?'Browser permission is allowed, but background notifications are not enabled yet.':'Notifications are not enabled on this device.';
 }
 $('profileBtn').addEventListener('click',function(){
   if(!session)return;
