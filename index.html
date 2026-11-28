@@ -376,8 +376,8 @@ function renderSide(){
   var day=events.filter(function(e){return e.date===selected});
   if(day.length)day.forEach(function(e){sl.append(eventRow(e,false))});
   else sl.append(h('li',{class:'empty',text:'Nothing planned.'}));
-  $('addSel').hidden=false;
-  $('addBtn').disabled=false;$('bulkBtn').disabled=!canWrite;
+  $('addSel').hidden=!canWrite;
+  $('addBtn').hidden=!canWrite;$('addBtn').disabled=!canWrite;$('bulkBtn').disabled=!canWrite;
 }
 
 function render(){events.sort(cmp);renderGrid();renderSide()}
