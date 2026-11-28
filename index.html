@@ -147,9 +147,13 @@ h1 span{font-weight:400;color:var(--ink-2)}
 .sheet input:focus,.sheet textarea:focus{outline:none;border-color:var(--accent);background:#fff}
 .sheet input:disabled,.sheet textarea:disabled{opacity:.7}
 .two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
-.color-picker{display:flex;align-items:center;gap:12px;padding:4px 0}
+.color-picker{display:flex;align-items:center;gap:12px;padding:4px 0;flex-wrap:wrap}
 .color-picker input[type=color]{width:54px;height:42px;padding:3px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer}
 .color-value{font-size:14px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.default-colors{display:flex;gap:10px;flex-wrap:wrap;padding:7px 0 3px}
+.default-color{width:27px;height:27px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #c8c8cc;background:var(--swatch);cursor:pointer;padding:0}
+.default-color[aria-pressed="true"]{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--swatch)}
+.default-color:focus-visible{outline:2px solid var(--accent);outline-offset:5px}
 .actions{display:flex;gap:8px;margin-top:20px;justify-content:flex-end;flex-wrap:wrap}
 .actions .left{margin-right:auto}
 .sheet .actions .btn{margin:0}
@@ -260,7 +264,15 @@ h1 span{font-weight:400;color:var(--ink-2)}
     <label for="fNotes">Notes</label>
     <textarea id="fNotes" maxlength="1000"></textarea>
     <div class="lg" id="colorLbl">Colour</div>
-    <div class="color-picker"><input id="fColor" type="color" value="#007aff" aria-label="Choose event colour"><span class="color-value" id="colorValue">#007AFF</span></div>
+    <div class="default-colors" id="defaultColors" aria-label="Default event colours">
+      <button type="button" class="default-color" data-color="#007aff" style="--swatch:#007aff" title="Blue" aria-label="Blue" aria-pressed="true"></button>
+      <button type="button" class="default-color" data-color="#ff3b30" style="--swatch:#ff3b30" title="Red" aria-label="Red" aria-pressed="false"></button>
+      <button type="button" class="default-color" data-color="#ff9500" style="--swatch:#ff9500" title="Orange" aria-label="Orange" aria-pressed="false"></button>
+      <button type="button" class="default-color" data-color="#34c759" style="--swatch:#34c759" title="Green" aria-label="Green" aria-pressed="false"></button>
+      <button type="button" class="default-color" data-color="#af52de" style="--swatch:#af52de" title="Purple" aria-label="Purple" aria-pressed="false"></button>
+      <button type="button" class="default-color" data-color="#8e8e93" style="--swatch:#8e8e93" title="Gray" aria-label="Gray" aria-pressed="false"></button>
+    </div>
+    <div class="color-picker"><input id="fColor" type="color" value="#007aff" aria-label="Choose any event colour"><span class="color-value" id="colorValue">#007AFF</span><span class="color-hint">Default colours or custom wheel</span></div>
     <div class="err" id="fErr" role="alert"></div>
     <div class="actions">
       <button class="btn danger left" id="delBtn" type="button" hidden>Delete</button>
@@ -427,8 +439,25 @@ function normalizeColor(value){
   return /^#[0-9a-f]{6}$/.test(v)?v:'#007aff';
 }
 function getColor(){return normalizeColor($('fColor').value)}
-function setColor(c){var value=normalizeColor(c);$('fColor').value=value;$('colorValue').textContent=value.toUpperCase()}
-$('fColor').addEventListener('input',function(){$('colorValue').textContent=this.value.toUpperCase()});
+function syncDefaultColors(value){
+  [].slice.call(document.querySelectorAll('.default-color')).forEach(function(btn){
+    btn.setAttribute('aria-pressed',normalizeColor(btn.getAttribute('data-color'))===value?'true':'false');
+  });
+}
+function setColor(c){
+  var value=normalizeColor(c);
+  $('fColor').value=value;
+  $('colorValue').textContent=value.toUpperCase();
+  syncDefaultColors(value);
+}
+$('defaultColors').addEventListener('click',function(ev){
+  var btn=ev.target.closest('.default-color');
+  if(btn)setColor(btn.getAttribute('data-color'));
+});
+$('fColor').addEventListener('input',function(){
+  $('colorValue').textContent=this.value.toUpperCase();
+  syncDefaultColors(this.value.toLowerCase());
+});
 function setErr(t){fErr.textContent=t||''}
 function disarm(){delArmed=false;clearTimeout(delTimer);delBtn.textContent='Delete'}
 
