@@ -69,14 +69,14 @@ Deno.serve(async (req) => {
 
     for (const sub of subs || []) {
       const { data: delivered } = await db.from("push_delivery_log")
-        .select("id").eq("queue_id", item.id).eq("user_id", sub.user_id).maybeSingle();
+        .select("id").eq("queue_id", item.id).eq("subscription_id", sub.id).maybeSingle();
       if (delivered) continue;
       try {
         await webpush.sendNotification({
           endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth },
         }, payload, { TTL: 86400 });
         const { error: logError } = await db.from("push_delivery_log")
-          .insert({ queue_id: item.id, user_id: sub.user_id });
+          .insert({ queue_id: item.id, subscription_id: sub.id });
         if (logError && logError.code !== "23505") throw logError;
         sent++;
       } catch (err) {
