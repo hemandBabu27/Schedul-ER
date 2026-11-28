@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
   const db = createClient(url, serviceKey, { auth: { persistSession: false } });
   const today = new Date().toISOString().slice(0, 10);
   const specs = [
-    { days: 14, type: "reminder_14" },
+    { days: 3, type: "reminder_3" },
     { days: 1, type: "reminder_1" },
     { days: 0, type: "reminder_0" },
   ];
@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
     if (sError) { failed++; continue; }
     const headings: Record<string, string> = {
       new: "New class event", updated: "Event updated", deleted: "Event cancelled",
-      reminder_14: "Event in 14 days", reminder_1: "Event tomorrow", reminder_0: "Event today",
+      reminder_3: "Event in 3 days", reminder_1: "Event tomorrow", reminder_0: "Event today",
     };
     const body = item.event_title + (item.event_date ? " · " + item.event_date : "") +
       (item.event_time ? " · " + item.event_time : "") +
