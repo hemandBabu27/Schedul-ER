@@ -122,6 +122,12 @@ h1 span{font-weight:400;color:var(--ink-2)}
 .notice-pinned .notice-pin-label{font-size:10px;font-weight:700;color:#946200;margin-bottom:3px}
 .notice-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .notice-actions .btn{padding:5px 9px;font-size:12px}
+.notice-inline-edit{display:grid;gap:7px;margin-top:10px;padding:10px;background:var(--fill);border-radius:10px}
+.notice-inline-edit label,.notice-edit-options-label{font-size:12px;font-weight:600;color:var(--ink-2)}
+.notice-inline-edit input,.notice-inline-edit textarea{width:100%;font:inherit;font-size:14px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:var(--ink)}
+.notice-inline-edit textarea{resize:vertical;min-height:64px}
+.notice-inline-edit .notice-actions{margin-top:2px}
+.notice-inline-edit .err{margin-top:0}
 .notice-poll-toggle{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink-2)}
 .notice-poll-toggle input{width:auto}
 #noticePollFields{display:grid;gap:8px}
@@ -985,32 +991,53 @@ function fetchNotices(){
         if(canWrite||isNoticeAuthor){
           var edit=h('button',{class:'btn',type:'button',text:'Edit'});
           edit.addEventListener('click',function(){
+            if(item.querySelector('.notice-inline-edit'))return;
             var isPoll=Array.isArray(n.poll_options)&&n.poll_options.length>=2;
-            var next={};
+            var form=h('form',{class:'notice-inline-edit'});
+            var questionInput=h('input',{type:'text',maxlength:'180',placeholder:isPoll?'Poll question':'Notice title',value:String(isPoll?(n.poll_question||n.title||''):(n.title||''))});
+            var bodyInput=h('textarea',{rows:'3',maxlength:'5000',placeholder:'Notice message'});
+            bodyInput.value=String(n.body||'');
+            form.append(h('label',{text:isPoll?'Poll question':'Notice title'}),questionInput);
             if(isPoll){
-              var q=window.prompt('Edit poll question:',String(n.poll_question||''));
-              if(q===null)return;
-              q=q.trim();
-              if(!q){toast('Poll question is required.');return;}
-              var raw=window.prompt('Edit poll options (one option per line):',n.poll_options.join('\n'));
-              if(raw===null)return;
-              var opts=raw.split(/\r?\n/).map(function(x){return x.trim()}).filter(Boolean);
-              if(opts.length<2||opts.length>4){toast('Enter 2 to 4 poll options, one per line.');return;}
-              next={title:q,body:null,poll_question:q,poll_options:opts};
+              form.append(h('div',{class:'notice-edit-options-label',text:'Poll options (2–4)'}));
+              var optionInputs=[];
+              for(var oi=0;oi<4;oi++){
+                var optionInput=h('input',{type:'text',maxlength:'120',placeholder:'Option '+(oi+1),value:String(n.poll_options[oi]||'')});
+                optionInputs.push(optionInput);form.append(optionInput);
+              }
             }else{
-              var title=window.prompt('Edit notice title:',String(n.title||''));
-              if(title===null)return;
-              var body=window.prompt('Edit notice message:',String(n.body||''));
-              if(body===null)return;
-              title=title.trim();body=body.trim();
-              if(!title||!body){toast('Notice title and message are required.');return;}
-              next={title:title,body:body};
+              form.append(h('label',{text:'Message'}),bodyInput);
             }
-            edit.disabled=true;
-            sb.from('notices').update(next).eq('id',n.id).eq('class_id',activeClass).select('id')
-              .then(function(x){if(x.error)throw x.error;if(!x.data||!x.data.length)throw new Error('Not permitted. Apply the notice edit migration if you are the post author.');toast('Notice updated.');return fetchNotices()})
-              .catch(function(x){toast('Edit failed: '+(x.message||'check notice edit permissions'))})
-              .then(function(){edit.disabled=false});
+            var err=h('div',{class:'err',role:'alert'});
+            var controls=h('div',{class:'notice-actions'});
+            var save=h('button',{class:'btn primary',type:'submit',text:'Save'});
+            var cancel=h('button',{class:'btn',type:'button',text:'Cancel'});
+            cancel.addEventListener('click',function(){form.remove();edit.hidden=false});
+            controls.append(save,cancel);form.append(err,controls);
+            item.insertBefore(form,actions);edit.hidden=true;
+            form.addEventListener('submit',function(ev){
+              ev.preventDefault();
+              var question=questionInput.value.trim(), next;
+              if(!question){err.textContent=isPoll?'Poll question is required.':'Notice title is required.';questionInput.focus();return;}
+              if(isPoll){
+                var opts=optionInputs.map(function(x){return x.value.trim()}).filter(Boolean);
+                if(opts.length<2||opts.length>4){err.textContent='Enter 2 to 4 poll options.';return;}
+                next={title:question,body:null,poll_question:question,poll_options:opts};
+              }else{
+                var body=bodyInput.value.trim();
+                if(!body){err.textContent='Notice message is required.';bodyInput.focus();return;}
+                next={title:question,body:body};
+              }
+              save.disabled=true;cancel.disabled=true;err.textContent='';
+              sb.from('notices').update(next).eq('id',n.id).eq('class_id',activeClass).select('id')
+                .then(function(x){
+                  if(x.error)throw x.error;
+                  if(!x.data||!x.data.length)throw new Error('Not permitted. Apply the notice edit migration if you are the post author.');
+                  toast('Notice updated.');return fetchNotices();
+                })
+                .catch(function(x){err.textContent='Edit failed: '+(x.message||'check notice edit permissions');save.disabled=false;cancel.disabled=false});
+            });
+            questionInput.focus();
           });
           actions.append(edit);
         }
