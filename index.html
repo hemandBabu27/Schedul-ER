@@ -190,6 +190,8 @@ h1 span{font-weight:400;color:var(--ink-2)}
       <div class="dow" aria-hidden="true"><div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div></div>
       <div class="days" id="days"></div>
       <p class="legend">Shaded events are inside their 2-week reminder window. Outlined dots are further away.</p>
+      <button class="btn" id="notifyEnable" type="button">Enable Chrome notifications</button>
+      <p class="sub" id="notifyStatus" aria-live="polite">Get reminders and event-change alerts on this device.</p>
     </section>
 
     <aside class="side">
@@ -632,17 +634,56 @@ function sbErr(res){
 }
 function unwrap(res){if(res.error)throw sbErr(res);return res}
 
+var notificationBaseline=false;
+var notificationSeen={};
+function notificationKey(e,kind){return 'scheduler:'+String(session&&session.user&&session.user.email||'guest')+':'+activeClass+':'+e.id+':'+e.date+':'+kind}
+function eventNotification(e,kind){
+  if(!('Notification' in window)||Notification.permission!=='granted')return;
+  var k=notificationKey(e,kind);
+  try{if(localStorage.getItem(k))return;localStorage.setItem(k,'1')}catch(_){}
+  var heading=kind==='updated'?'Event updated':kind==='new'?'New class event':kind==='today'?'Event today':'Upcoming event reminder';
+  var details=[e.title,'Date: '+fmtFull.format(parseKey(e.date)), 'Time: '+(e.time?fmtTime(e.time):'Not specified'),'Category: '+(e.category||'Custom'),e.notes?'Details: '+e.notes:''].filter(Boolean).join('\n');
+  try{var n=new Notification(heading,{body:details,tag:'scheduler-'+e.id+'-'+kind,icon:'/favicon.svg'});n.onclick=function(){window.focus();select(e.date,false);n.close()}}catch(_){}
+}
+function scanEventNotifications(next,initial){
+  if(!('Notification' in window)||Notification.permission!=='granted')return;
+  var today=todayKey(), prior=notificationSeen;
+  next.forEach(function(e){
+    var days=daysBetween(today,e.date);
+    if(days===14||days===1||days===0)eventNotification(e,days===0?'today':'reminder');
+    var sig=[e.title,e.date,e.time,e.notes,e.category].join('|');
+    if(!initial&&notificationBaseline&&prior[e.id]&&prior[e.id]!==sig)eventNotification(e,'updated');
+    if(!initial&&notificationBaseline&&!prior[e.id])eventNotification(e,'new');
+  });
+  notificationSeen={};
+  next.forEach(function(e){notificationSeen[e.id]=[e.title,e.date,e.time,e.notes,e.category].join('|')});
+  notificationBaseline=true;
+}
+function refreshNotifyStatus(){
+  var b=$('notifyEnable'),s=$('notifyStatus');
+  if(!('Notification' in window)){b.disabled=true;b.textContent='Notifications unavailable';s.textContent='This browser does not support desktop notifications.';return}
+  if(Notification.permission==='granted'){b.textContent='Chrome notifications enabled';s.textContent='Reminders and event updates are enabled on this device.'}
+  else if(Notification.permission==='denied'){b.textContent='Notifications blocked';s.textContent='Allow notifications for this site in Chrome site settings.'}
+  else {b.textContent='Enable Chrome notifications';s.textContent='Allow notifications to receive event reminders and change alerts.'}
+}
+$('notifyEnable').addEventListener('click',function(){
+  if(!('Notification' in window))return;
+  Notification.requestPermission().then(function(){refreshNotifyStatus();if(Notification.permission==='granted')scanEventNotifications(events,true)});
+});
+refreshNotifyStatus();
+
 function fetchAll(){
   if(!sb)return Promise.resolve();
   if(!activeClass){events=[];loaded=true;showNote('Sign in with a valid class email to view this calendar.');render();return Promise.resolve();}
   return sb.from(TABLE).select('*').eq('class_id',activeClass).order('date',{ascending:true}).then(function(res){
     if(res.error){if(!loaded)showNote("Couldn't load events. Check your connection and try again.");return}
+    var previousEvents=events.slice();
     events=res.data.map(function(v){
       return {id:String(v.id),title:String(v.title||'').slice(0,120),date:String(v.date||'').slice(0,10),
         time:/^\d{2}:\d{2}/.test(v.time||'')?String(v.time).slice(0,5):'',notes:String(v.notes||''),
-        color:normalizeColor(v.color),category:String(v.category||'Custom'),createdAt:String(v.created_at||'')};
+        color:normalizeColor(v.color),category:String(v.category||'Custom'),createdAt:String(v.created_at||''),updatedAt:String(v.updated_at||'')};
     }).filter(function(e){return e.title&&/^\d{4}-\d{2}-\d{2}$/.test(e.date)});
-    loaded=true;showNote('');render();
+    loaded=true;showNote('');scanEventNotifications(events,!notificationBaseline);render();
   });
 }
 
