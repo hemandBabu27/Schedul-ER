@@ -281,7 +281,7 @@ var events=[];
 var view=new Date(); view=new Date(view.getFullYear(),view.getMonth(),1);
 var selected=todayKey();
 var lastToday=todayKey();
-var editingId=null, lastFocus=null, delArmed=false, delTimer=null, toastTimer=null;
+var editingId=null, lastFocus=null, delArmed=false, delTimer=null, toastTimer=null, pendingUndo=null;
 
 function status(date){var d=daysBetween(todayKey(),date);return d<0?'past':(d<=REMIND_DAYS?'on':'far')}
 function cmp(a,b){return a.date<b.date?-1:a.date>b.date?1:(a.time||'')<(b.time||'')?-1:(a.time||'')>(b.time||'')?1:a.title.localeCompare(b.title)}
@@ -414,9 +414,26 @@ function closeForm(){
   if(lastFocus&&lastFocus.focus&&document.contains(lastFocus))lastFocus.focus();
 }
 
-function toast(t){
-  var el=$('toast');el.textContent=t;el.hidden=false;
-  clearTimeout(toastTimer);toastTimer=setTimeout(function(){el.hidden=true},2600);
+function toast(t,undoItems){
+  var el=$('toast');el.replaceChildren(document.createTextNode(t));el.hidden=false;
+  clearTimeout(toastTimer);pendingUndo=null;
+  if(undoItems&&undoItems.length){
+    pendingUndo=undoItems.map(function(e){return Object.assign({},e)});
+    var btn=h('button',{type:'button',text:'Undo',style:'margin-left:12px;border:0;background:none;color:#9ecbff;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer'});
+    btn.addEventListener('click',function(){
+      if(!pendingUndo)return;
+      var items=pendingUndo;pendingUndo=null;clearTimeout(toastTimer);el.hidden=true;
+      btn.disabled=true;
+      restoreDeleted(items).then(function(){toast('Deletion undone')}).catch(function(){toast('Undo failed. Please check your connection.')});
+    });
+    el.append(btn);
+  }
+  toastTimer=setTimeout(function(){pendingUndo=null;el.hidden=true},8000);
+}
+function restoreDeleted(items){
+  if(!canWrite||!sb||!activeCalendar)return Promise.reject({code:'invalid_argument'});
+  var rows=items.map(function(e){return {calendar_email:activeCalendar,title:e.title,date:e.date,time:e.time||'',notes:e.notes||'',color:e.color||'blue',created_at:e.createdAt||new Date().toISOString(),updated_at:new Date().toISOString()}});
+  return sb.from(TABLE).insert(rows).then(unwrap).then(fetchAll);
 }
 function errMsg(ex){
   var c=ex&&ex.code;
@@ -457,9 +474,9 @@ $('form').addEventListener('submit',function(e){
 delBtn.addEventListener('click',function(){
   if(!db||!canWrite||!editingId)return;
   if(!delArmed){delArmed=true;delBtn.textContent='Tap again to delete';clearTimeout(delTimer);delTimer=setTimeout(disarm,4000);return}
-  var id=editingId;delBtn.disabled=true;
+  var id=editingId, deleted=events.find(function(e){return e.id===id});delBtn.disabled=true;
   withRetry(function(){return deleteEvent(id)})
-    .then(function(){closeForm();toast('Event deleted')})
+    .then(function(){closeForm();toast('Event deleted',deleted?[deleted]:[])})
     .catch(function(ex){setErr(errMsg(ex))})
     .then(function(){delBtn.disabled=false});
 });
@@ -492,7 +509,7 @@ $('passToggle').addEventListener('click',function(){var show=$('aPass').type==='
 ['bulkOverlay','overlay','authOverlay'].forEach(function(id){$(id).addEventListener('click',function(e){if(e.target===$(id))$(id).hidden=true})});
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){['bulkOverlay','overlay','authOverlay'].forEach(function(id){if(!$(id).hidden)$(id).hidden=true})}});
 $('bulkOverlay').addEventListener('click',function(e){if(e.target===$('bulkOverlay'))$('bulkOverlay').hidden=true});
-$('bulkDeleteConfirm').addEventListener('click',function(){var ids=Object.keys(bulkSelected).filter(function(id){return bulkSelected[id]});if(!ids.length||!canWrite)return;if(!confirm('Delete '+ids.length+' selected event(s)? This cannot be undone.'))return;var btn=$('bulkDeleteConfirm');btn.disabled=true;btn.textContent='Deleting…';$('bulkErr').textContent='';sb.from(TABLE).delete().in('id',ids).eq('calendar_email',activeCalendar).select('id').then(unwrap).then(function(res){if(!res.data||!res.data.length)throw {code:'invalid_argument'};return fetchAll()}).then(function(){$('bulkOverlay').hidden=true;toast('Deleted '+ids.length+' event(s)')}).catch(function(ex){$('bulkErr').textContent=errMsg(ex)}).then(function(){btn.textContent='Delete selected';updateBulkCount()})});
+$('bulkDeleteConfirm').addEventListener('click',function(){var ids=Object.keys(bulkSelected).filter(function(id){return bulkSelected[id]});if(!ids.length||!canWrite)return;if(!confirm('Delete '+ids.length+' selected event(s)? This cannot be undone.'))return;var deleted=events.filter(function(e){return ids.indexOf(e.id)>=0});var btn=$('bulkDeleteConfirm');btn.disabled=true;btn.textContent='Deleting…';$('bulkErr').textContent='';sb.from(TABLE).delete().in('id',ids).eq('calendar_email',activeCalendar).select('id').then(unwrap).then(function(res){if(!res.data||!res.data.length)throw {code:'invalid_argument'};return fetchAll()}).then(function(){$('bulkOverlay').hidden=true;toast('Deleted '+deleted.length+' event(s)',deleted)}).catch(function(ex){$('bulkErr').textContent=errMsg(ex)}).then(function(){btn.textContent='Delete selected';updateBulkCount()})});
 /* ---------- controls ---------- */
 $('prev').addEventListener('click',function(){view=new Date(view.getFullYear(),view.getMonth()-1,1);renderGrid()});
 $('next').addEventListener('click',function(){view=new Date(view.getFullYear(),view.getMonth()+1,1);renderGrid()});
