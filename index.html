@@ -1030,7 +1030,7 @@ $('noticeForm').addEventListener('submit',function(e){
   var btn=$('noticePost');btn.disabled=true;$('noticeErr').textContent='';
   // The existing notices table requires title/body; store the poll question in title
   // for database compatibility, but suppress that generic notice line when rendering polls.
-  var payload={class_id:activeClass,title:pollOn?question:title,body:pollOn?'':body,author_email:session.user.email,author_name:(session.user.user_metadata&&session.user.user_metadata.full_name)||session.user.email};
+  var payload={class_id:activeClass,title:pollOn?question:title,body:pollOn?null:body,author_email:session.user.email,author_name:(session.user.user_metadata&&session.user.user_metadata.full_name)||session.user.email};
   if(pollOn){payload.poll_question=question;payload.poll_options=options;}
   sb.from('notices').insert(payload).then(function(res){
     if(res.error){
