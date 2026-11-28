@@ -106,6 +106,17 @@ h1 span{font-weight:400;color:var(--ink-2)}
 .notice-item strong{display:block;overflow-wrap:anywhere}
 .notice-item p{margin:5px 0;white-space:pre-wrap;overflow-wrap:anywhere}
 .notice-meta{font-size:13px;color:var(--ink-2)}
+.notice-poll-toggle{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink-2)}
+.notice-poll-toggle input{width:auto}
+#noticePollFields{display:grid;gap:8px}
+.notice-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.notice-like.liked,.poll-vote.voted{color:var(--accent);border-color:var(--accent)}
+.notice-pinned{background:#fffdf4;padding:12px;border-radius:10px;border:1px solid #f0dfaa;margin:8px 0}
+.notice-pin-label{font-size:12px;font-weight:700;color:#946200;margin-bottom:6px}
+.notice-poll{margin-top:12px;padding:12px;background:var(--fill);border-radius:10px;display:grid;gap:8px}
+.poll-choice{display:flex}
+.poll-choice .btn{width:100%;text-align:left;white-space:normal}
+
 .side h2{margin:0;font-size:22px;line-height:1.2;font-weight:700;display:flex;align-items:center;gap:8px}
 .badge{font-size:13px;font-weight:600;background:var(--today);color:#fff;border-radius:999px;padding:1px 9px;font-variant-numeric:tabular-nums}
 .sub{margin:4px 0 8px;color:var(--ink-2);font-size:15px}
@@ -196,6 +207,14 @@ h1 span{font-weight:400;color:var(--ink-2)}
     <form class="notice-form" id="noticeForm" hidden>
       <input id="noticeTitle" type="text" maxlength="120" placeholder="Notice title" required aria-label="Notice title">
       <textarea id="noticeBody" maxlength="2000" placeholder="Write a notice for your class…" required aria-label="Notice message"></textarea>
+      <label class="notice-poll-toggle"><input id="noticePollOn" type="checkbox"> Add a poll</label>
+      <div id="noticePollFields" hidden>
+        <input id="pollQuestion" type="text" maxlength="160" placeholder="Poll question">
+        <input class="poll-option-input" type="text" maxlength="100" placeholder="Option 1">
+        <input class="poll-option-input" type="text" maxlength="100" placeholder="Option 2">
+        <input class="poll-option-input" type="text" maxlength="100" placeholder="Option 3 (optional)">
+        <input class="poll-option-input" type="text" maxlength="100" placeholder="Option 4 (optional)">
+      </div>
       <div><button class="btn primary" id="noticePost" type="submit">Post notice</button></div>
       <div class="err" id="noticeErr" role="alert"></div>
     </form>
@@ -654,45 +673,98 @@ function fetchNotices(){
   var list=$('noticeList');
   if(!sb||!activeClass){list.textContent='Sign in with a valid class account to view notices.';return Promise.resolve();}
   return sb.from('notices').select('*').eq('class_id',activeClass).order('created_at',{ascending:false}).limit(100).then(function(res){
-    if(res.error){list.textContent='Could not load notices. Run the class calendar migration in Supabase.';return;}
-    list.replaceChildren();
-    if(!res.data.length){list.append(h('p',{class:'empty',text:'No notices posted yet.'}));return;}
-    res.data.forEach(function(n){
-      var item=h('article',{class:'notice-item'});
-      item.append(h('strong',{text:n.title}),h('p',{text:n.body}),h('div',{class:'notice-meta',text:String(n.author_name||'')+(n.author_name?' · ':'')+new Date(n.created_at).toLocaleString()}));
-      var isNoticeAuthor=!!(session&&session.user&&session.user.email&&String(session.user.email).toLowerCase()===String(n.author_email||'').toLowerCase());
-      if(canWrite||isNoticeAuthor){
-        var del=h('button',{class:'btn danger',type:'button',text:'Delete'});
-        del.addEventListener('click',function(){
-          if(!confirm('Delete this notice?'))return;
-          var q=sb.from('notices').delete().eq('id',n.id).eq('class_id',activeClass).select('id');
-          if(!canWrite)q=q.eq('author_email',session.user.email);
-          del.disabled=true;
-          q.then(function(x){
-            if(x.error)throw x.error;
-            if(!x.data||!x.data.length)throw new Error('Not allowed');
-            toast('Notice deleted');return fetchNotices();
-          }).catch(function(){del.disabled=false;toast('Could not delete notice. Check your permissions and try again.')});
+    if(res.error){list.textContent='Could not load notices: '+res.error.message;return;}
+    var notices=res.data||[];
+    if(!notices.length){list.replaceChildren(h('p',{class:'empty',text:'No notices posted yet.'}));return;}
+    var ids=notices.map(function(n){return n.id});
+    return Promise.all([
+      sb.from('notice_likes').select('notice_id,user_email').in('notice_id',ids),
+      sb.from('notice_poll_votes').select('notice_id,user_email,option_index').in('notice_id',ids)
+    ]).then(function(extra){
+      if(extra[0].error||extra[1].error){var err=extra[0].error||extra[1].error;list.textContent='Notice interactions need the Supabase migration: '+err.message;return;}
+      var likes=extra[0].data||[], votes=extra[1].data||[];
+      var email=String(session&&session.user&&session.user.email||'').toLowerCase();
+      list.replaceChildren();
+      notices.sort(function(a,b){return Number(!!b.is_pinned)-Number(!!a.is_pinned)||new Date(b.created_at)-new Date(a.created_at)});
+      notices.forEach(function(n){
+        var item=h('article',{class:'notice-item'+(n.is_pinned?' notice-pinned':'')});
+        if(n.is_pinned)item.append(h('div',{class:'notice-pin-label',text:'📌 Pinned'}));
+        item.append(h('strong',{text:n.title}),h('p',{text:n.body}),h('div',{class:'notice-meta',text:String(n.author_name||'')+(n.author_name?' · ':'')+new Date(n.created_at).toLocaleString()}));
+        var isNoticeAuthor=!!(email&&email===String(n.author_email||'').toLowerCase());
+        var ownLike=likes.some(function(x){return String(x.notice_id)===String(n.id)&&String(x.user_email||'').toLowerCase()===email});
+        var likeCount=likes.filter(function(x){return String(x.notice_id)===String(n.id)}).length;
+        var actions=h('div',{class:'notice-actions'});
+        var likeBtn=h('button',{class:'btn notice-like'+(ownLike?' liked':''),type:'button',text:(ownLike?'♥ Liked':'♡ Like')+' · '+likeCount});
+        likeBtn.addEventListener('click',function(){
+          likeBtn.disabled=true;
+          var q=ownLike?sb.from('notice_likes').delete().eq('notice_id',n.id).eq('user_email',session.user.email):sb.from('notice_likes').insert({notice_id:n.id,user_email:session.user.email,class_id:activeClass});
+          q.then(function(x){if(x.error)throw x.error;return fetchNotices()}).catch(function(x){toast('Like failed: '+(x.message||'check Supabase migration/policies'))}).then(function(){likeBtn.disabled=false});
         });
-        item.append(del);
-      }
-      list.append(item);
+        actions.append(likeBtn);
+        var pollOptions=Array.isArray(n.poll_options)?n.poll_options:[];
+        if(pollOptions.length>=2){
+          var pollBox=h('div',{class:'notice-poll'});pollBox.append(h('strong',{text:n.poll_question||'Poll'}));
+          var mine=votes.find(function(v){return String(v.notice_id)===String(n.id)&&String(v.user_email||'').toLowerCase()===email});
+          pollOptions.forEach(function(opt,index){
+            var count=votes.filter(function(v){return String(v.notice_id)===String(n.id)&&Number(v.option_index)===index}).length;
+            var line=h('div',{class:'poll-choice'});
+            var voteBtn=h('button',{type:'button',class:'btn poll-vote'+(mine&&Number(mine.option_index)===index?' voted':''),text:String(opt)+' · '+count});
+            voteBtn.addEventListener('click',function(){
+              voteBtn.disabled=true;
+              sb.from('notice_poll_votes').upsert({notice_id:n.id,class_id:activeClass,user_email:session.user.email,option_index:index},{onConflict:'notice_id,user_email'})
+                .then(function(x){if(x.error)throw x.error;return fetchNotices()})
+                .catch(function(x){toast('Vote failed: '+(x.message||'check Supabase migration/policies'))}).then(function(){voteBtn.disabled=false});
+            });
+            line.append(voteBtn);pollBox.append(line);
+          });
+          item.append(pollBox);
+        }
+        if(canWrite){
+          var pin=h('button',{class:'btn',type:'button',text:n.is_pinned?'Unpin':'Pin'});
+          pin.addEventListener('click',function(){
+            pin.disabled=true;
+            sb.from('notices').update({is_pinned:!n.is_pinned}).eq('id',n.id).eq('class_id',activeClass).select('id')
+              .then(function(x){if(x.error)throw x.error;if(!x.data||!x.data.length)throw new Error('Not permitted');return fetchNotices()})
+              .catch(function(x){toast('Pin update failed: '+(x.message||'check admin permissions'))}).then(function(){pin.disabled=false});
+          });
+          actions.append(pin);
+        }
+        if(canWrite||isNoticeAuthor){
+          var del=h('button',{class:'btn danger',type:'button',text:'Delete'});
+          del.addEventListener('click',function(){
+            if(!confirm('Delete this notice?'))return;
+            var q=sb.from('notices').delete().eq('id',n.id).eq('class_id',activeClass).select('id');
+            if(!canWrite)q=q.eq('author_email',session.user.email);
+            del.disabled=true;
+            q.then(function(x){if(x.error)throw x.error;if(!x.data||!x.data.length)throw new Error('Not allowed');toast('Notice deleted');return fetchNotices()})
+              .catch(function(){del.disabled=false;toast('Could not delete notice. Check your permissions and try again.')});
+          });
+          actions.append(del);
+        }
+        item.append(actions);list.append(item);
+      });
     });
   });
 }
+$('noticePollOn').addEventListener('change',function(){$('noticePollFields').hidden=!this.checked;$('pollQuestion').required=this.checked;});
 $('noticeForm').addEventListener('submit',function(e){
   e.preventDefault();
   if(!canPostNotice||!session||!activeClass)return;
-  var title=$('noticeTitle').value.trim(), body=$('noticeBody').value.trim();
+  var title=$('noticeTitle').value.trim(), body=$('noticeBody').value.trim(), pollOn=$('noticePollOn').checked;
+  var options=[].slice.call(document.querySelectorAll('.poll-option-input')).map(function(x){return x.value.trim()}).filter(Boolean);
+  var question=$('pollQuestion').value.trim();
   if(!title||!body){$('noticeErr').textContent='Enter a title and notice.';return;}
+  if(pollOn&&(!question||options.length<2)){$('noticeErr').textContent='A poll needs a question and at least two options.';return;}
   var btn=$('noticePost');btn.disabled=true;$('noticeErr').textContent='';
-  sb.from('notices').insert({class_id:activeClass,title:title,body:body,author_email:session.user.email,author_name:(session.user.user_metadata&&session.user.user_metadata.full_name)||session.user.email}).then(function(res){
+  var payload={class_id:activeClass,title:title,body:body,author_email:session.user.email,author_name:(session.user.user_metadata&&session.user.user_metadata.full_name)||session.user.email};
+  if(pollOn){payload.poll_question=question;payload.poll_options=options;}
+  sb.from('notices').insert(payload).then(function(res){
     if(res.error){
       console.error('Schedul-ER notice insert failed:',res.error);
       $('noticeErr').textContent='Post failed: '+(res.error.message||'Supabase rejected the request')+(res.error.code?' ('+res.error.code+')':'');
       throw res.error;
     }
-    $('noticeTitle').value='';$('noticeBody').value='';return fetchNotices();
+    $('noticeTitle').value='';$('noticeBody').value='';$('noticePollOn').checked=false;$('noticePollFields').hidden=true;$('pollQuestion').value='';document.querySelectorAll('.poll-option-input').forEach(function(x){x.value=''});return fetchNotices();
   }).catch(function(err){
     if(!$('noticeErr').textContent)$('noticeErr').textContent='Post failed: '+(err&&err.message?err.message:'Check your connection and Supabase permissions.');
   }).then(function(){btn.disabled=false;});
