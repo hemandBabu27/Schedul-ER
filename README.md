@@ -3,12 +3,12 @@
 A four-class calendar and class-specific noticeboard for TKMCE, built with Supabase Auth, Postgres Row Level Security, and realtime updates.
 
 ## Features
-- Four separate class calendars (23, 24, 25, 26) in one website and Supabase project
+- Four separate class calendars displayed as ER-27, ER-28, ER-29, and ER-30 (internally mapped to classes 23, 24, 25, and 26)
 - Students sign in with their TKMCE Google account and can view only their own class calendar
 - Only the assigned class administrator can add, edit, bulk-delete, or delete calendar events
 - Signed-in class members can post notices to their own class noticeboard
 - Noticeboards are private to members of the matching class
-- Realtime calendar and noticeboard updates, monthly view, 14-day reminders, and undo for event deletions
+- Categorized events with Assignment, Exam, Presentation, and custom tags\n- Realtime calendar and noticeboard updates, monthly view, 14-day reminders, and undo for event deletions
 - Responsive Source Sans 3 interface
 
 ## Class and account mapping
@@ -55,7 +55,7 @@ Students must use a Google account whose email starts with their class number (2
 4. Ensure `public.events` exists with the existing calendar columns: `id` (identity primary key), `title`, `date`, `time`, `notes`, `color`, `created_at`, and `updated_at`. Existing installations should already have this table.
 5. Back up the events table, then run **`supabase/class-calendars-noticeboard-migration.sql`** in Supabase SQL Editor. This adds `class_id`, migrates existing events whose `calendar_email` matches one of the four administrator emails, replaces the old email-scoped policies with class/role policies, and creates the private `notices` table.
 6. If existing events were assigned to other shared email addresses, manually set their `class_id` to `23`, `24`, `25`, or `26` in SQL Editor after checking which class owns them. Rows without a class remain inaccessible by design.
-7. Deploy the repository to your hosting provider.
+7. Run **`supabase/event-categories-migration.sql`** in Supabase SQL Editor. Existing events will receive the default `Custom` category.\n8. Deploy the repository to your hosting provider.
 
 ## Permissions enforced by Supabase
 
