@@ -107,7 +107,10 @@ h1 span{font-weight:400;color:var(--ink-2)}
 .notice-form textarea{min-height:54px;resize:vertical}
 #noticeList{max-height:430px;overflow-y:auto;overscroll-behavior:contain;padding:0 6px 0 0}
 .notice-item{padding:9px 12px;margin:6px 0;border:1px solid var(--line);border-radius:12px;background:#fff}
-.notice-item strong{display:block;overflow-wrap:anywhere;font-size:13px;color:var(--accent)}
+.notice-author{display:flex;align-items:center;gap:9px;min-width:0}
+.notice-avatar{width:32px;height:32px;flex:0 0 32px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:700;text-transform:uppercase;line-height:1}
+.notice-author strong{display:block;overflow-wrap:anywhere;font-size:13px;color:var(--ink)}
+
 .notice-item p{margin:3px 0 4px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.4}
 .notice-meta{font-size:10px;color:var(--ink-2);text-align:right}
 .notice-pinned{background:#fffdf4;border-color:#f0dfaa}
@@ -920,7 +923,14 @@ function fetchNotices(){
       notices.forEach(function(n){
         var item=h('article',{class:'notice-item'+(n.is_pinned?' notice-pinned':'')});
         if(n.is_pinned)item.append(h('div',{class:'notice-pin-label',text:'📌 Pinned'}));
-        item.append(h('strong',{text:String(n.author_name||'Member')}),h('p',{text:(n.title?String(n.title)+' — ':'')+String(n.body||'')}),h('div',{class:'notice-meta',text:new Date(n.created_at).toLocaleString()}));
+        var authorName=String(n.author_name||'Member').trim()||'Member';
+        var palette=['#3478f6','#16a085','#9b59b6','#e67e22','#e74c3c','#2874a6','#7d8b3a','#c03978'];
+        var hash=0;for(var ci=0;ci<authorName.length;ci++)hash=(hash*31+authorName.charCodeAt(ci))>>>0;
+        var avatar=h('div',{class:'notice-avatar',text:Array.from(authorName)[0]||'?'});
+        avatar.style.backgroundColor=palette[hash%palette.length];
+        var author=h('div',{class:'notice-author'});
+        author.append(avatar,h('strong',{text:authorName}));
+        item.append(author,h('p',{text:(n.title?String(n.title)+' — ':'')+String(n.body||'')}),h('div',{class:'notice-meta',text:new Date(n.created_at).toLocaleString()}));
         var isNoticeAuthor=!!(email&&email===String(n.author_email||'').toLowerCase());
         var ownLike=likes.some(function(x){return String(x.notice_id)===String(n.id)&&String(x.user_email||'').toLowerCase()===email});
         var likeCount=likes.filter(function(x){return String(x.notice_id)===String(n.id)}).length;
