@@ -103,6 +103,12 @@ h1 span{font-weight:400;color:var(--ink-2)}
 }
 
 .side{display:flex;flex-direction:column;gap:32px;min-width:0}
+.monthly-report{border-top:1px solid var(--line);padding-top:16px}
+.monthly-report h2{font-size:20px}
+.monthly-report .report-stat{font-size:14px;padding:7px 0;border-bottom:1px solid var(--line)}
+.monthly-report .report-stat strong{font-variant-numeric:tabular-nums}
+.monthly-report .report-note{font-size:13px;color:var(--ink-2);margin:8px 0}
+.monthly-report .btn{margin-top:10px}
 .noticeboard{margin-top:26px;border-top:1px solid var(--line);padding-top:18px}
 .noticeboard h2{margin:0;font-size:20px}
 .notice-form{display:grid;gap:8px;margin:10px 0 14px}
@@ -225,6 +231,12 @@ h1 span{font-weight:400;color:var(--ink-2)}
         <h2 id="selTitle"></h2>
         <ul class="list" id="selList"></ul>
         <button class="btn" id="addSel" type="button" hidden>Add to this day</button>
+      </section>
+      <section class="monthly-report" aria-labelledby="monthlyReportHead">
+        <h2 id="monthlyReportHead">Monthly Events Report</h2>
+        <p class="sub" id="monthlyReportMonth">Automatic summary for this month</p>
+        <div id="monthlyReportBody" aria-live="polite"></div>
+        <button class="btn" id="copyMonthlyReport" type="button">Copy report</button>
       </section>
     </aside>
   </div>
@@ -462,6 +474,59 @@ function renderSide(){
   else sl.append(h('li',{class:'empty',text:'Nothing planned.'}));
   $('addSel').hidden=!canWrite;
   $('addBtn').hidden=!canWrite;$('addBtn').disabled=!canWrite;$('bulkBtn').disabled=!canWrite;
+  renderMonthlyReport();
+}
+
+function renderMonthlyReport(){
+  var y=view.getFullYear(),m=view.getMonth();
+  var monthEvents=events.filter(function(e){var d=parseKey(e.date);return d.getFullYear()===y&&d.getMonth()===m}).sort(cmp);
+  var body=$('monthlyReportBody');
+  $('monthlyReportMonth').textContent=new Intl.DateTimeFormat('en-IN',{month:'long',year:'numeric'}).format(view);
+  body.replaceChildren();
+  var lines=['Monthly Events Report — '+new Intl.DateTimeFormat('en-IN',{month:'long',year:'numeric'}).format(view),'Total events: '+monthEvents.length];
+  if(!monthEvents.length){
+    body.append(h('p',{class:'report-note',text:'No events are scheduled for this month.'}));
+    lines.push('No events are scheduled for this month.');
+  }else{
+    var categories={};
+    var dates={};
+    monthEvents.forEach(function(e){
+      var c=categoryName(e);categories[c]=(categories[c]||0)+1;
+      dates[e.date]=(dates[e.date]||0)+1;
+    });
+    body.append(h('div',{class:'report-stat'},h('strong',{text:String(monthEvents.length)}),' total '+(monthEvents.length===1?'event':'events')));
+    Object.keys(categories).sort(function(a,b){return categories[b]-categories[a]||a.localeCompare(b)}).forEach(function(c){
+      var line=c+': '+categories[c];
+      body.append(h('div',{class:'report-stat',text:line}));lines.push(line);
+    });
+    var busiest=Object.keys(dates).sort(function(a,b){return dates[b]-dates[a]||a.localeCompare(b)})[0];
+    var busiestText='Busiest day: '+fmtFull.format(parseKey(busiest))+' ('+dates[busiest]+' '+(dates[busiest]===1?'event':'events')+')';
+    body.append(h('p',{class:'report-note',text:busiestText}));lines.push(busiestText);
+    var upcoming=monthEvents.filter(function(e){return e.date>=todayKey()}).length;
+    var past=monthEvents.length-upcoming;
+    var statusText='Upcoming: '+upcoming+' · Already passed: '+past;
+    body.append(h('p',{class:'report-note',text:statusText}));lines.push(statusText);
+    var first=monthEvents[0],last=monthEvents[monthEvents.length-1];
+    var rangeText='Scheduled from '+fmtShort.format(parseKey(first.date))+' to '+fmtShort.format(parseKey(last.date))+'.';
+    body.append(h('p',{class:'report-note',text:rangeText}));lines.push(rangeText);
+    lines.push('Events:');
+    monthEvents.forEach(function(e){
+      var detail='• '+fmtFull.format(parseKey(e.date))+(e.time?' at '+fmtTime(e.time):'')+' — '+e.title+' ('+categoryName(e)+')';
+      if(e.notes)detail+=' — '+e.notes;
+      lines.push(detail);
+    });
+  }
+  var copy=$('copyMonthlyReport');
+  copy.onclick=function(){
+    var report=lines.join('\n');
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(report).then(function(){toast('Monthly report copied.')}).catch(function(){toast('Could not copy report.');});
+    }else{
+      var temp=document.createElement('textarea');temp.value=report;temp.style.position='fixed';temp.style.opacity='0';document.body.appendChild(temp);temp.select();
+      try{document.execCommand('copy');toast('Monthly report copied.')}catch(e){toast('Could not copy report.')}
+      temp.remove();
+    }
+  };
 }
 
 function render(){events.sort(cmp);renderGrid();renderSide()}
