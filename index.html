@@ -46,7 +46,10 @@ button{font:inherit;color:inherit;cursor:pointer}
 .c-purple{--c:#af52de;--t:#f4e8fb}
 .c-gray{--c:#8e8e93;--t:#efeff1}
 
-.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;padding-right:50px}
+#profileBtn{position:fixed;top:10px;right:max(12px,env(safe-area-inset-right));z-index:100;width:42px;height:42px;min-width:42px;padding:0;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:#fff;font-size:17px;font-weight:700;border:2px solid #fff;box-shadow:0 2px 10px #0002}
+#profileBtn:hover{background:#086bd2}
+#profileBtn[hidden]{display:none}
 
 h1{margin:0;font-size:34px;line-height:1.1;font-weight:700;letter-spacing:-.01em}
 h1 span{font-weight:400;color:var(--ink-2)}
@@ -186,7 +189,7 @@ h1 span{font-weight:400;color:var(--ink-2)}
       <button class="btn" id="todayBtn" type="button">Today</button>
       <button class="btn icon" id="next" type="button" aria-label="Next month"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg></button>
       <button class="btn" id="loginBtn" type="button">Sign in</button>
-      <button class="btn" id="profileBtn" type="button" hidden>Profile</button>
+      <button class="btn" id="profileBtn" type="button" hidden aria-label="Open profile" title="Profile">?</button>
       <button class="btn" id="outBtn" type="button" hidden>Sign out</button>
       <button class="btn danger" id="bulkBtn" type="button" disabled>Bulk delete</button>
       <button class="btn primary" id="addBtn" type="button" disabled>Add event</button>
@@ -924,12 +927,8 @@ function fetchNotices(){
         var item=h('article',{class:'notice-item'+(n.is_pinned?' notice-pinned':'')});
         if(n.is_pinned)item.append(h('div',{class:'notice-pin-label',text:'📌 Pinned'}));
         var authorName=String(n.author_name||'Member').trim()||'Member';
-        var palette=['#3478f6','#16a085','#9b59b6','#e67e22','#e74c3c','#2874a6','#7d8b3a','#c03978'];
-        var hash=0;for(var ci=0;ci<authorName.length;ci++)hash=(hash*31+authorName.charCodeAt(ci))>>>0;
-        var avatar=h('div',{class:'notice-avatar',text:Array.from(authorName)[0]||'?'});
-        avatar.style.backgroundColor=palette[hash%palette.length];
         var author=h('div',{class:'notice-author'});
-        author.append(avatar,h('strong',{text:authorName}));
+        author.append(h('strong',{text:authorName}));
         item.append(author,h('p',{text:(n.title?String(n.title)+' — ':'')+String(n.body||'')}),h('div',{class:'notice-meta',text:new Date(n.created_at).toLocaleString()}));
         var isNoticeAuthor=!!(email&&email===String(n.author_email||'').toLowerCase());
         var ownLike=likes.some(function(x){return String(x.notice_id)===String(n.id)&&String(x.user_email||'').toLowerCase()===email});
@@ -1023,6 +1022,12 @@ function setSession(s){
   $('noticeForm').hidden=!canPostNotice;
   $('outBtn').hidden=!s;
   $('profileBtn').hidden=!s;
+  if(s){
+    var profileName=String((s.user.user_metadata&&s.user.user_metadata.full_name)||s.user.email||'U').trim();
+    var initial=Array.from(profileName)[0]||'U';
+    $('profileBtn').textContent=initial.toUpperCase();
+    $('profileBtn').setAttribute('aria-label','Open profile for '+profileName);
+  }
   $('editLoginBtn').hidden=canWrite;
   if(s){
     $('authOverlay').hidden=true;
