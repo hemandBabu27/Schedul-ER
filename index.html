@@ -136,12 +136,9 @@ h1 span{font-weight:400;color:var(--ink-2)}
 .sheet input:focus,.sheet textarea:focus{outline:none;border-color:var(--accent);background:#fff}
 .sheet input:disabled,.sheet textarea:disabled{opacity:.7}
 .two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
-.swatches{display:flex;gap:12px;flex-wrap:wrap;padding:4px 0}
-.sheet .sw{position:relative;display:block;margin:0}
-.sw input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
-.sw span{display:block;width:28px;height:28px;border-radius:50%;background:var(--c)}
-.sw input:checked+span{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--c)}
-.sw input:focus-visible+span{outline:2px solid var(--accent);outline-offset:5px}
+.color-picker{display:flex;align-items:center;gap:12px;padding:4px 0}
+.color-picker input[type=color]{width:54px;height:42px;padding:3px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer}
+.color-value{font-size:14px;color:var(--ink-2);font-variant-numeric:tabular-nums}
 .actions{display:flex;gap:8px;margin-top:20px;justify-content:flex-end;flex-wrap:wrap}
 .actions .left{margin-right:auto}
 .sheet .actions .btn{margin:0}
@@ -244,7 +241,7 @@ h1 span{font-weight:400;color:var(--ink-2)}
     <label for="fNotes">Notes</label>
     <textarea id="fNotes" maxlength="1000"></textarea>
     <div class="lg" id="colorLbl">Colour</div>
-    <div class="swatches" id="swatches" role="radiogroup" aria-labelledby="colorLbl"></div>
+    <div class="color-picker"><input id="fColor" type="color" value="#007aff" aria-label="Choose event colour"><span class="color-value" id="colorValue">#007AFF</span></div>
     <div class="err" id="fErr" role="alert"></div>
     <div class="actions">
       <button class="btn danger left" id="delBtn" type="button" hidden>Delete</button>
@@ -321,7 +318,9 @@ function showNote(t){var n=$('note');if(t){n.textContent=t;n.hidden=false}else{n
 
 /* ---------- rendering ---------- */
 function chip(e){
-  return h('button',{type:'button',class:'chip c-'+e.color+' '+status(e.date),title:e.title,
+  var color=normalizeColor(e.color);
+  return h('button',{type:'button',class:'chip '+status(e.date),title:e.title,
+    style:'--c:'+color+';--t:color-mix(in srgb, '+color+' 14%, white)',
     onclick:function(ev){ev.stopPropagation();openForm(e.id)}},
     h('i'),h('b',{text:e.title}),h('span',{class:'event-tag '+categoryClass(e),text:categoryName(e)}));
 }
@@ -340,10 +339,8 @@ function renderGrid(){
       var label=fmtFull.format(d)+(list.length?', '+list.length+(list.length===1?' event':' events'):'');
       var cellProps={class:cls,onclick:function(ev){select(k,ev.detail===0&&ev.target.classList.contains('num'))}};
       if(list.length){
-        var firstColor=list[0].color||'blue';
-        cellProps.style='--event-color:var(--'+firstColor+');--event-tint:var(--t)';
-        /* CSS custom vars are defined by the color class; keep the event's tint scoped to this cell. */
-        cellProps.class+=' c-'+firstColor;
+        var firstColor=normalizeColor(list[0].color);
+        cellProps.style='--c:'+firstColor+';--event-color:'+firstColor+';--event-tint:color-mix(in srgb, '+firstColor+' 14%, white)';
       }
       var cell=h('div',cellProps,
         h('button',{type:'button',class:'num',text:String(d.getDate()),'aria-label':label,'aria-pressed':k===selected?'true':'false'}));
@@ -352,7 +349,7 @@ function renderGrid(){
         list.slice(0,2).forEach(function(e){chips.append(chip(e))});
         if(list.length>2)chips.append(h('div',{class:'more',text:'+'+(list.length-2)+' more'}));
         var dots=h('div',{class:'dots'});
-        list.slice(0,4).forEach(function(e){dots.append(h('i',{class:'c-'+e.color+' '+status(e.date)}))});
+        list.slice(0,4).forEach(function(e){dots.append(h('i',{class:status(e.date),style:'background:'+normalizeColor(e.color)}))});
         cell.append(chips,dots);
       }
       frag.append(cell);
@@ -366,7 +363,7 @@ function eventRow(e,withWhen){
   var meta=withWhen?fmtShort.format(parseKey(e.date))+(e.time?' · '+fmtTime(e.time):''):(e.time?fmtTime(e.time):'All day');
   var txt=h('div',{class:'txt'},h('div',{class:'t',text:e.title}),h('span',{class:'event-tag '+categoryClass(e),text:categoryName(e)}),h('div',{class:'m',text:meta}));
   if(!withWhen&&e.notes)txt.append(h('div',{class:'m',text:e.notes.length>140?e.notes.slice(0,140)+'…':e.notes}));
-  var row=h('button',{type:'button',class:'row c-'+e.color,onclick:function(){openForm(e.id)}},h('span',{class:'bar'}),txt);
+  var row=h('button',{type:'button',class:'row',style:'--c:'+normalizeColor(e.color),onclick:function(){openForm(e.id)}},h('span',{class:'bar'}),txt);
   if(withWhen){
     var lbl=d===0?'Today':d===1?'Tomorrow':'In '+d+' days';
     row.append(h('span',{class:'when'+(d===0?' now':d<=3?' soon':''),text:lbl}));
@@ -404,12 +401,15 @@ function select(k,refocus){
 /* ---------- form ---------- */
 var fTitle=$('fTitle'),fDate=$('fDate'),fTime=$('fTime'),fNotes=$('fNotes'),fErr=$('fErr'),saveBtn=$('saveBtn'),delBtn=$('delBtn');
 
-COLORS.forEach(function(c,i){
-  $('swatches').append(h('label',{class:'sw c-'+c},
-    h('input',{type:'radio',name:'color',value:c,'aria-label':COLOR_NAMES[c],checked:i===0}),h('span')));
-});
-function getColor(){var r=document.querySelector('input[name=color]:checked');return r?r.value:'blue'}
-function setColor(c){var r=document.querySelector('input[name=color][value='+c+']');if(r)r.checked=true}
+var LEGACY_COLORS={blue:'#007aff',red:'#ff3b30',orange:'#ff9500',green:'#34c759',purple:'#af52de',gray:'#8e8e93'};
+function normalizeColor(value){
+  var v=String(value||'').trim().toLowerCase();
+  if(LEGACY_COLORS[v])return LEGACY_COLORS[v];
+  return /^#[0-9a-f]{6}$/.test(v)?v:'#007aff';
+}
+function getColor(){return normalizeColor($('fColor').value)}
+function setColor(c){var value=normalizeColor(c);$('fColor').value=value;$('colorValue').textContent=value.toUpperCase()}
+$('fColor').addEventListener('input',function(){$('colorValue').textContent=this.value.toUpperCase()});
 function setErr(t){fErr.textContent=t||''}
 function disarm(){delArmed=false;clearTimeout(delTimer);delBtn.textContent='Delete'}
 
@@ -435,7 +435,7 @@ function openForm(id,dateKey){
   $('singleDateRow').hidden=false;$('rangeDateRow').hidden=true;$('rangeHint').hidden=true;$('rangeTimeRow').hidden=true;
   $('fRangeMode').disabled=ro;
   setErr('');disarm();
-  [fTitle,fDate,fTime,fNotes,$('fCategory'),$('fCustomCategory'),$('fStartDate'),$('fEndDate'),$('fRangeTime')].concat([].slice.call(document.querySelectorAll('input[name=color]'))).forEach(function(el){el.disabled=ro});
+  [fTitle,fDate,fTime,fNotes,$('fCategory'),$('fCustomCategory'),$('fStartDate'),$('fEndDate'),$('fRangeTime'),$('fColor')].forEach(function(el){el.disabled=ro});
   saveBtn.hidden=ro;saveBtn.textContent=ev?'Save':'Add';
   delBtn.hidden=ro||!ev;
   $('editLoginBtn').hidden=!ro||!!session;
@@ -592,7 +592,7 @@ function fetchAll(){
     events=res.data.map(function(v){
       return {id:String(v.id),title:String(v.title||'').slice(0,120),date:String(v.date||'').slice(0,10),
         time:/^\d{2}:\d{2}/.test(v.time||'')?String(v.time).slice(0,5):'',notes:String(v.notes||''),
-        color:COLORS.indexOf(v.color)>=0?v.color:'blue',category:String(v.category||'Custom'),createdAt:String(v.created_at||'')};
+        color:normalizeColor(v.color),category:String(v.category||'Custom'),createdAt:String(v.created_at||'')};
     }).filter(function(e){return e.title&&/^\d{4}-\d{2}-\d{2}$/.test(e.date)});
     loaded=true;showNote('');render();
   });
