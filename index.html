@@ -58,19 +58,8 @@ h1 span{font-weight:400;color:var(--ink-2)}
 
 .note{background:var(--fill);border-radius:10px;padding:10px 14px;font-size:15px;color:var(--ink-2);margin-bottom:16px}
 
-.layout{display:grid;grid-template-columns:minmax(180px,220px) minmax(0,1fr) 340px;gap:28px;align-items:start}
-.pinned-side{display:flex;flex-direction:column;gap:24px;min-width:0}
-.pinned-side h2{margin:0;font-size:22px;line-height:1.2;font-weight:700;display:flex;align-items:center;gap:8px}
-.pinned-row{display:flex;align-items:flex-start;gap:10px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:10px 0;cursor:pointer}
-.pinned-row:hover{background:#fafafc}
-.pinned-row .bar{min-height:42px;background:#d6a52b}
-.pinned-content{flex:1;min-width:0}
-.pinned-title{font-weight:600;overflow-wrap:anywhere}
-.pinned-body{font-size:14px;color:var(--ink-2);overflow-wrap:anywhere;margin-top:3px}
-.pinned-meta{font-size:12px;color:var(--ink-2);margin-top:4px}
-.pinned-tag{display:inline-flex;margin-top:4px;padding:1px 7px;border-radius:999px;background:#fff4d6;color:#946200;font-size:12px;font-weight:700}
-@media(max-width:1050px){.layout{grid-template-columns:minmax(0,1fr) 300px;gap:24px}.pinned-side{grid-column:1/-1;grid-row:2}.pinned-side section{max-width:none}}
-@media(max-width:900px){.layout{grid-template-columns:minmax(0,1fr);gap:28px}.pinned-side{grid-column:auto;grid-row:auto;order:3}.layout>section[aria-label="Month view"]{order:1}.layout>.side{order:2}}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:36px;align-items:start}
+@media(max-width:900px){.layout{grid-template-columns:minmax(0,1fr);gap:28px}}
 
 .dow,.days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
 .dow div{padding:6px 8px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
@@ -197,13 +186,6 @@ h1 span{font-weight:400;color:var(--ink-2)}
   <div class="note" id="note" role="status" hidden></div>
 
   <div class="layout">
-    <aside class="pinned-side" aria-labelledby="pinnedHead">
-      <section>
-        <h2 id="pinnedHead">Pinned notices <span class="badge" id="pinnedCount" hidden></span></h2>
-        <p class="sub">Important class updates.</p>
-        <ul class="list" id="pinnedList"><li class="empty">Pinned notices will appear here.</li></ul>
-      </section>
-    </aside>
     <section aria-label="Month view">
       <div class="dow" aria-hidden="true"><div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div></div>
       <div class="days" id="days"></div>
@@ -757,37 +739,12 @@ function classForEmail(email){
 function isAdminEmail(email){
   return ['er27@gmail.com','er28@gmail.com','er29@gmail.com','er30@gmail.com'].indexOf(String(email||'').trim().toLowerCase())>=0;
 }
-function renderPinnedNotices(notices){
-  var list=$('pinnedList'), count=$('pinnedCount');
-  if(!list)return;
-  var pinned=(notices||[]).filter(function(n){return !!n.is_pinned;})
-    .sort(function(a,b){return new Date(b.created_at)-new Date(a.created_at)});
-  list.replaceChildren();
-  count.hidden=!pinned.length;count.textContent=String(pinned.length);
-  if(!pinned.length){
-    list.append(h('li',{class:'empty',text:loaded?'No pinned notices.':'Pinned notices will appear here.'}));
-    return;
-  }
-  pinned.forEach(function(n){
-    var content=h('div',{class:'pinned-content'},
-      h('div',{class:'pinned-title',text:n.title||'Untitled notice'}),
-      h('div',{class:'pinned-tag',text:'📌 Pinned'}));
-    if(n.body)content.append(h('div',{class:'pinned-body',text:n.body.length>150?n.body.slice(0,150)+'…':n.body}));
-    content.append(h('div',{class:'pinned-meta',text:String(n.author_name||'Class admin')+' · '+new Date(n.created_at).toLocaleDateString()}));
-    var row=h('button',{type:'button',class:'pinned-row',title:'View this notice',onclick:function(){
-      var target=$('noticeList');
-      if(target){target.scrollIntoView({behavior:'smooth',block:'center'});}
-    }},h('span',{class:'bar'}),content);
-    list.append(h('li',null,row));
-  });
-}
 function fetchNotices(){
   var list=$('noticeList');
   if(!sb||!activeClass){list.textContent='Sign in with a valid class account to view notices.';return Promise.resolve();}
   return sb.from('notices').select('*').eq('class_id',activeClass).order('created_at',{ascending:false}).limit(100).then(function(res){
     if(res.error){list.textContent='Could not load notices: '+res.error.message;return;}
     var notices=res.data||[];
-    renderPinnedNotices(notices);
     if(!notices.length){list.replaceChildren(h('p',{class:'empty',text:'No notices posted yet.'}));return;}
     var ids=notices.map(function(n){return n.id});
     return Promise.all([
