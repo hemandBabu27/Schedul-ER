@@ -982,6 +982,38 @@ function fetchNotices(){
           });
           item.append(pollBox);
         }
+        if(canWrite||isNoticeAuthor){
+          var edit=h('button',{class:'btn',type:'button',text:'Edit'});
+          edit.addEventListener('click',function(){
+            var isPoll=Array.isArray(n.poll_options)&&n.poll_options.length>=2;
+            var next={};
+            if(isPoll){
+              var q=window.prompt('Edit poll question:',String(n.poll_question||''));
+              if(q===null)return;
+              q=q.trim();
+              if(!q){toast('Poll question is required.');return;}
+              var raw=window.prompt('Edit poll options (one option per line):',n.poll_options.join('\n'));
+              if(raw===null)return;
+              var opts=raw.split(/\r?\n/).map(function(x){return x.trim()}).filter(Boolean);
+              if(opts.length<2||opts.length>4){toast('Enter 2 to 4 poll options, one per line.');return;}
+              next={title:q,body:null,poll_question:q,poll_options:opts};
+            }else{
+              var title=window.prompt('Edit notice title:',String(n.title||''));
+              if(title===null)return;
+              var body=window.prompt('Edit notice message:',String(n.body||''));
+              if(body===null)return;
+              title=title.trim();body=body.trim();
+              if(!title||!body){toast('Notice title and message are required.');return;}
+              next={title:title,body:body};
+            }
+            edit.disabled=true;
+            sb.from('notices').update(next).eq('id',n.id).eq('class_id',activeClass).select('id')
+              .then(function(x){if(x.error)throw x.error;if(!x.data||!x.data.length)throw new Error('Not permitted. Apply the notice edit migration if you are the post author.');toast('Notice updated.');return fetchNotices()})
+              .catch(function(x){toast('Edit failed: '+(x.message||'check notice edit permissions'))})
+              .then(function(){edit.disabled=false});
+          });
+          actions.append(edit);
+        }
         if(canWrite){
           var pin=h('button',{class:'btn',type:'button',text:n.is_pinned?'Unpin':'Pin'});
           pin.addEventListener('click',function(){
