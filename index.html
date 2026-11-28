@@ -100,15 +100,20 @@ h1 span{font-weight:400;color:var(--ink-2)}
 }
 
 .side{display:flex;flex-direction:column;gap:32px;min-width:0}
-.noticeboard{margin-top:34px;border-top:1px solid var(--line);padding-top:22px}
-.noticeboard h2{margin:0;font-size:22px}
-.notice-form{display:grid;gap:8px;margin:12px 0 18px}
-.notice-form input,.notice-form textarea{width:100%;font:inherit;font-size:16px;background:var(--fill);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--ink)}
-.notice-form textarea{min-height:76px;resize:vertical}
-.notice-item{padding:12px 0;border-bottom:1px solid var(--line)}
-.notice-item strong{display:block;overflow-wrap:anywhere}
-.notice-item p{margin:5px 0;white-space:pre-wrap;overflow-wrap:anywhere}
-.notice-meta{font-size:13px;color:var(--ink-2)}
+.noticeboard{margin-top:26px;border-top:1px solid var(--line);padding-top:18px}
+.noticeboard h2{margin:0;font-size:20px}
+.notice-form{display:grid;gap:8px;margin:10px 0 14px}
+.notice-form input,.notice-form textarea{width:100%;font:inherit;font-size:15px;background:var(--fill);border:1px solid var(--line);border-radius:10px;padding:9px 11px;color:var(--ink)}
+.notice-form textarea{min-height:54px;resize:vertical}
+#noticeList{max-height:430px;overflow-y:auto;overscroll-behavior:contain;padding:0 6px 0 0}
+.notice-item{padding:9px 12px;margin:6px 0;border:1px solid var(--line);border-radius:12px;background:#fff}
+.notice-item strong{display:block;overflow-wrap:anywhere;font-size:13px;color:var(--accent)}
+.notice-item p{margin:3px 0 4px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.4}
+.notice-meta{font-size:10px;color:var(--ink-2);text-align:right}
+.notice-pinned{background:#fffdf4;border-color:#f0dfaa}
+.notice-pinned .notice-pin-label{font-size:10px;font-weight:700;color:#946200;margin-bottom:3px}
+.notice-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.notice-actions .btn{padding:5px 9px;font-size:12px}
 .notice-poll-toggle{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink-2)}
 .notice-poll-toggle input{width:auto}
 #noticePollFields{display:grid;gap:8px}
@@ -179,6 +184,7 @@ h1 span{font-weight:400;color:var(--ink-2)}
       <button class="btn" id="todayBtn" type="button">Today</button>
       <button class="btn icon" id="next" type="button" aria-label="Next month"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg></button>
       <button class="btn" id="loginBtn" type="button">Sign in</button>
+      <button class="btn" id="profileBtn" type="button" hidden>Profile</button>
       <button class="btn" id="outBtn" type="button" hidden>Sign out</button>
       <button class="btn danger" id="bulkBtn" type="button" disabled>Bulk delete</button>
       <button class="btn primary" id="addBtn" type="button" disabled>Add event</button>
@@ -193,10 +199,7 @@ h1 span{font-weight:400;color:var(--ink-2)}
       <div class="dow" aria-hidden="true"><div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div></div>
       <div class="days" id="days"></div>
       <p class="legend">Shaded events are inside their 2-week reminder window. Outlined dots are further away.</p>
-      <button class="btn" id="notifyEnable" type="button">Enable Chrome notifications</button>
-      <p class="sub" id="notifyStatus" aria-live="polite">Get reminders and event-change alerts on this device.</p>
-      <button class="btn" id="pushEnable" type="button">Enable background notifications on this device</button>
-      <p class="sub" id="pushStatus" aria-live="polite">Works across supported browsers and devices, even when the browser is closed.</p>
+      <div hidden aria-hidden="true"><button id="notifyEnable" type="button"></button><span id="notifyStatus"></span><button id="pushEnable" type="button"></button><span id="pushStatus"></span></div>
     </section>
 
     <aside class="side">
@@ -291,6 +294,26 @@ h1 span{font-weight:400;color:var(--ink-2)}
 </div>
 <div id="visitorCounter" style="text-align:center;font-size:11px;color:var(--ink-3);padding:10px 0 0;margin-top:16px" aria-live="polite">— visitors</div>
 <div class="toast" id="toast" role="status" hidden></div>
+<div class="overlay" id="profileOverlay" hidden>
+  <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="profileTitle">
+    <div class="sheet-head"><h3 id="profileTitle">Profile</h3><button class="close-pop" type="button" data-close="profileOverlay" aria-label="Close">×</button></div>
+    <p class="sub" id="profileEmail"></p>
+    <label for="profileName">Display name</label>
+    <input id="profileName" type="text" maxlength="80" autocomplete="name" placeholder="Your name">
+    <div class="actions"><button class="btn primary" id="profileSave" type="button">Save name</button></div>
+    <div class="err" id="profileErr" role="alert"></div>
+    <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
+    <strong>Change password</strong>
+    <input id="profilePassword" type="password" minlength="8" autocomplete="new-password" placeholder="New password (at least 8 characters)">
+    <input id="profilePasswordConfirm" type="password" minlength="8" autocomplete="new-password" placeholder="Confirm new password">
+    <div class="actions"><button class="btn" id="profilePasswordSave" type="button">Update password</button></div>
+    <p class="sub">Your current password is never displayed. If you forget it, contact the administrator because TKMCE IDs are used for calendar mapping, not email verification.</p>
+    <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
+    <strong>Notifications on this device</strong>
+    <p class="sub" id="profileNotifyStatus">Check notification permissions.</p>
+    <div class="actions"><button class="btn" id="profileChromeEnable" type="button">Enable browser notifications</button><button class="btn" id="profilePushToggle" type="button">Enable background push</button></div>
+  </section>
+</div>
 <div class="overlay" id="authOverlay" hidden>
   <form class="sheet" id="authForm" role="dialog" aria-modal="true" aria-labelledby="authTitle" novalidate>
     <div class="sheet-head"><h3 id="authTitle">Sign in</h3><button class="close-pop" type="button" data-close="authOverlay" aria-label="Close">×</button></div>
@@ -752,6 +775,58 @@ function enableBackgroundPush(){
   }).then(function(){button.disabled=false});
 }
 $('pushEnable').addEventListener('click',enableBackgroundPush);
+$('profileChromeEnable').addEventListener('click',function(){
+  if(!('Notification' in window))return;
+  Notification.requestPermission().then(function(){refreshNotifyStatus();refreshProfileNotificationStatus();if(Notification.permission==='granted')scanEventNotifications(events,true)});
+});
+$('profilePushToggle').addEventListener('click',function(){
+  var b=this;
+  if(!session||!activeClass)return;
+  b.disabled=true;
+  navigator.serviceWorker.ready.then(function(reg){return reg.pushManager.getSubscription()}).then(function(sub){
+    if(!sub){enableBackgroundPush();return}
+    return sb.from('push_subscriptions').delete().eq('endpoint',sub.endpoint).then(function(res){
+      if(res.error)throw res.error;
+      return sub.unsubscribe();
+    }).then(function(){pushEnabledOnThisDevice=false;refreshProfileNotificationStatus()});
+  }).catch(function(err){$('profileErr').textContent='Could not update notifications: '+(err.message||'Try again')}).then(function(){b.disabled=false});
+});
+function refreshProfileNotificationStatus(){
+  var el=$('profileNotifyStatus'),push=$('profilePushToggle');
+  if(!el)return;
+  var chrome=('Notification' in window)&&Notification.permission==='granted';
+  el.textContent='Browser notifications: '+(chrome?'Allowed':'Not enabled')+' · Background push: '+(pushEnabledOnThisDevice?'Enabled on this device':'Not enabled');
+  if(push)push.textContent=pushEnabledOnThisDevice?'Disable background push':'Enable background push';
+}
+$('profileBtn').addEventListener('click',function(){
+  if(!session)return;
+  $('profileEmail').textContent=session.user.email||'';
+  $('profileName').value=(session.user.user_metadata&&session.user.user_metadata.full_name)||'';
+  $('profilePassword').value='';$('profilePasswordConfirm').value='';$('profileErr').textContent='';
+  refreshProfileNotificationStatus();$('profileOverlay').hidden=false;
+});
+$('profileSave').addEventListener('click',function(){
+  var name=$('profileName').value.trim(),b=this;
+  if(!name){$('profileErr').textContent='Enter your display name.';return}
+  b.disabled=true;
+  sb.auth.updateUser({data:{full_name:name}}).then(function(res){
+    if(res.error)throw res.error;
+    session.user.user_metadata.full_name=name;
+    $('profileErr').textContent='Name updated.';
+    fetchNotices();
+  }).catch(function(err){$('profileErr').textContent='Could not update name: '+(err.message||'Try again')}).then(function(){b.disabled=false});
+});
+$('profilePasswordSave').addEventListener('click',function(){
+  var p=$('profilePassword').value,p2=$('profilePasswordConfirm').value,b=this;
+  if(p.length<8){$('profileErr').textContent='Password must contain at least 8 characters.';return}
+  if(p!==p2){$('profileErr').textContent='Passwords do not match.';return}
+  b.disabled=true;
+  sb.auth.updateUser({password:p}).then(function(res){
+    if(res.error)throw res.error;
+    $('profilePassword').value='';$('profilePasswordConfirm').value='';
+    $('profileErr').textContent='Password updated successfully.';
+  }).catch(function(err){$('profileErr').textContent='Could not update password: '+(err.message||'Try again')}).then(function(){b.disabled=false});
+});
 if('serviceWorker' in navigator){
   window.addEventListener('load',function(){
     navigator.serviceWorker.register('/sw.js').then(function(){refreshPushStatus()}).catch(function(err){console.warn('Service worker registration failed',err)});
@@ -846,7 +921,7 @@ function fetchNotices(){
       notices.forEach(function(n){
         var item=h('article',{class:'notice-item'+(n.is_pinned?' notice-pinned':'')});
         if(n.is_pinned)item.append(h('div',{class:'notice-pin-label',text:'📌 Pinned'}));
-        item.append(h('strong',{text:n.title}),h('p',{text:n.body}),h('div',{class:'notice-meta',text:String(n.author_name||'')+(n.author_name?' · ':'')+new Date(n.created_at).toLocaleString()}));
+        item.append(h('strong',{text:String(n.author_name||'Member')}),h('p',{text:(n.title?String(n.title)+' — ':'')+String(n.body||'')}),h('div',{class:'notice-meta',text:new Date(n.created_at).toLocaleString()}));
         var isNoticeAuthor=!!(email&&email===String(n.author_email||'').toLowerCase());
         var ownLike=likes.some(function(x){return String(x.notice_id)===String(n.id)&&String(x.user_email||'').toLowerCase()===email});
         var likeCount=likes.filter(function(x){return String(x.notice_id)===String(n.id)}).length;
@@ -938,6 +1013,7 @@ function setSession(s){
   $('noticeInfo').textContent=activeClass?classLabel(activeClass)+' notices are visible only to signed-in members of this class.':'Sign in with your TKMCE class account to view and post notices.';
   $('noticeForm').hidden=!canPostNotice;
   $('outBtn').hidden=!s;
+  $('profileBtn').hidden=!s;
   $('editLoginBtn').hidden=canWrite;
   if(s){
     $('authOverlay').hidden=true;
