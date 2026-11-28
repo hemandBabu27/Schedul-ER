@@ -707,8 +707,7 @@ function setSession(s){
 var authMode='signin';
 function validAccountEmail(email){
   email=String(email||'').trim().toLowerCase();
-  return /^[^\\s@]+@tkmce[.]ac[.]in$/.test(email) ||
-    ['er27@gmail.com','er28@gmail.com','er29@gmail.com','er30@gmail.com'].indexOf(email)>=0;
+  return !!classForEmail(email);
 }
 function setAuthMode(mode){
   authMode=mode;
@@ -728,7 +727,7 @@ $('authForm').addEventListener('submit',function(e){
   var email=$('aEmail').value.trim().toLowerCase(), pass=$('aPass').value;
   if(!email||!pass){$('aErr').textContent='Enter your email and password.';return}
   if(!validAccountEmail(email)){$('aErr').textContent='Use your official @tkmce.ac.in email address.';return}
-  if(authMode==='signup'&&!/^[0-9]{2}.+@tkmce[.]ac[.]in$/.test(email)){$('aErr').textContent='Your TKMCE email must start with your assigned class digits (23, 24, 25 or 26).';return}
+  if(authMode==='signup'&&!/^(23|24|25|26).+@tkmce[.]ac[.]in$/.test(email)){$('aErr').textContent='Your TKMCE email must start with your assigned class digits (23, 24, 25 or 26).';return}
   if(authMode==='signup'&&pass.length<8){$('aErr').textContent='Choose a password with at least 8 characters.';return}
   $('aBtn').disabled=true;$('aErr').textContent='';
   var action=authMode==='signup'
