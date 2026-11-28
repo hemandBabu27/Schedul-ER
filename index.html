@@ -748,14 +748,15 @@ function refreshPushStatus(){
     status.textContent=enabled?'This device is subscribed. Push notifications can arrive while the browser is closed.':'Enable once on each device to receive background notifications.';
   }).catch(function(){status.textContent='Could not check this device push subscription.'});
 }
-function enableBackgroundPush(){
-  var button=$('pushEnable'),status=$('pushStatus');
+function enableBackgroundPush(button,status){
+  button=button||$('profilePushToggle');status=status||$('profileNotifyStatus');
   if(!session||!activeClass){status.textContent='Sign in to your class account first.';return}
-  if(PUSH_VAPID_PUBLIC_KEY.indexOf('REPLACE_')===0){status.textContent='VAPID public key has not been configured yet.';return}
-  if(!('serviceWorker' in navigator)||!('PushManager' in window)){status.textContent='Web Push is not supported in this browser.';return}
-  button.disabled=true;status.textContent='Enabling background notifications…';
+  if(!('Notification' in window)){status.textContent='Notifications are not supported by this browser.';return}
+  if(!('serviceWorker' in navigator)||!('PushManager' in window)){status.textContent='Background push is not supported by this browser.';return}
+  if(PUSH_VAPID_PUBLIC_KEY.indexOf('REPLACE_')===0){status.textContent='VAPID public key has not been configured.';return}
+  button.disabled=true;status.textContent='Requesting permission and enabling notifications…';
   Notification.requestPermission().then(function(permission){
-    if(permission!=='granted')throw new Error('Allow notifications in your browser settings, then try again.');
+    if(permission!=='granted')throw new Error(permission==='denied'?'Notifications are blocked for this site. Allow them in Chrome site settings.':'Notification permission was not granted.');
     return navigator.serviceWorker.register('/sw.js');
   }).then(function(reg){
     return reg.pushManager.getSubscription().then(function(existing){
@@ -768,42 +769,35 @@ function enableBackgroundPush(){
     return sb.from('push_subscriptions').upsert({
       user_id:session.user.id,class_id:activeClass,endpoint:json.endpoint,
       p256dh:json.keys.p256dh,auth:json.keys.auth,user_agent:navigator.userAgent,updated_at:new Date().toISOString()
-    },{onConflict:'endpoint'}).then(function(res){if(res.error)throw res.error;return sub});
+    },{onConflict:'endpoint'}).then(function(res){if(res.error)throw res.error});
   }).then(function(){
     pushEnabledOnThisDevice=true;
     try{localStorage.setItem('schedul-er-push-enabled:'+activeClass,'1')}catch(_){}
-    status.textContent='Background notifications enabled on this device.';
-    button.textContent='Background notifications enabled on this device';
     refreshNotifyStatus();refreshProfileNotificationStatus();
   }).catch(function(err){
-    status.textContent='Could not enable push: '+(err&&err.message?err.message:'Please try again.');
-  }).then(function(){button.disabled=false});
+    status.textContent='Could not enable notifications: '+(err&&err.message?err.message:'Please try again.');
+  }).then(function(){button.disabled=false;refreshProfileNotificationStatus()});
 }
-$('pushEnable').addEventListener('click',enableBackgroundPush);
 $('profilePushToggle').addEventListener('click',function(){
-  var b=this;
-  if(!session||!activeClass)return;
+  var b=this,status=$('profileNotifyStatus');
+  if(!session||!activeClass){status.textContent='Sign in to your class account first.';return}
   b.disabled=true;
-  if(!('Notification' in window)){
-    $('profileNotifyStatus').textContent='Notifications are not supported by this browser.';
-    b.disabled=false;return;
+  if(pushEnabledOnThisDevice){
+    navigator.serviceWorker.register('/sw.js').then(function(reg){return reg.pushManager.getSubscription()}).then(function(sub){
+      if(!sub)throw new Error('No active subscription was found on this device.');
+      return sb.from('push_subscriptions').delete().eq('endpoint',sub.endpoint).then(function(res){
+        if(res.error)throw res.error;
+        return sub.unsubscribe();
+      });
+    }).then(function(){
+      pushEnabledOnThisDevice=false;
+      try{localStorage.removeItem('schedul-er-push-enabled:'+activeClass)}catch(_){}
+      refreshProfileNotificationStatus();
+    }).catch(function(err){status.textContent='Could not disable notifications: '+(err.message||'Please try again.')})
+      .then(function(){b.disabled=false});
+  }else{
+    enableBackgroundPush(b,status);
   }
-  if(!('serviceWorker' in navigator)||!('PushManager' in window)){
-    Notification.requestPermission().then(function(permission){
-      if(permission==='granted'){
-        refreshNotifyStatus();scanEventNotifications(events,true);
-        $('profileNotifyStatus').textContent='Browser notifications are allowed. Background push is not supported by this browser.';
-      }else $('profileNotifyStatus').textContent='Notifications were not allowed. Check this site’s browser settings.';
-    }).catch(function(){$('profileNotifyStatus').textContent='Could not enable notifications.'}).then(function(){b.disabled=false});
-    return;
-  }
-  navigator.serviceWorker.ready.then(function(reg){return reg.pushManager.getSubscription()}).then(function(sub){
-    if(!sub){enableBackgroundPush();return}
-    return sb.from('push_subscriptions').delete().eq('endpoint',sub.endpoint).then(function(res){
-      if(res.error)throw res.error;
-      return sub.unsubscribe();
-    }).then(function(){pushEnabledOnThisDevice=false;refreshProfileNotificationStatus()});
-  }).catch(function(err){$('profileErr').textContent='Could not update notifications: '+(err.message||'Try again')}).then(function(){b.disabled=false});
 });
 function refreshProfileNotificationStatus(){
   var el=$('profileNotifyStatus'),push=$('profilePushToggle');
