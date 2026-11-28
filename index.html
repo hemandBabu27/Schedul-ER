@@ -97,6 +97,15 @@ h1 span{font-weight:400;color:var(--ink-2)}
 }
 
 .side{display:flex;flex-direction:column;gap:32px;min-width:0}
+.noticeboard{margin-top:34px;border-top:1px solid var(--line);padding-top:22px}
+.noticeboard h2{margin:0;font-size:22px}
+.notice-form{display:grid;gap:8px;margin:12px 0 18px}
+.notice-form input,.notice-form textarea{width:100%;font:inherit;font-size:16px;background:var(--fill);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--ink)}
+.notice-form textarea{min-height:76px;resize:vertical}
+.notice-item{padding:12px 0;border-bottom:1px solid var(--line)}
+.notice-item strong{display:block;overflow-wrap:anywhere}
+.notice-item p{margin:5px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.notice-meta{font-size:13px;color:var(--ink-2)}
 .side h2{margin:0;font-size:22px;line-height:1.2;font-weight:700;display:flex;align-items:center;gap:8px}
 .badge{font-size:13px;font-weight:600;background:var(--today);color:#fff;border-radius:999px;padding:1px 9px;font-variant-numeric:tabular-nums}
 .sub{margin:4px 0 8px;color:var(--ink-2);font-size:15px}
@@ -181,6 +190,17 @@ h1 span{font-weight:400;color:var(--ink-2)}
       </section>
     </aside>
   </div>
+  <section class="noticeboard" aria-labelledby="noticeHead">
+    <h2 id="noticeHead">Class noticeboard</h2>
+    <p class="sub" id="noticeInfo">Sign in with your TKMCE class account to view and post notices.</p>
+    <form class="notice-form" id="noticeForm" hidden>
+      <input id="noticeTitle" type="text" maxlength="120" placeholder="Notice title" required aria-label="Notice title">
+      <textarea id="noticeBody" maxlength="2000" placeholder="Write a notice for your class…" required aria-label="Notice message"></textarea>
+      <div><button class="btn primary" id="noticePost" type="submit">Post notice</button></div>
+      <div class="err" id="noticeErr" role="alert"></div>
+    </form>
+    <div id="noticeList" class="list"><p class="empty">Sign in to view class notices.</p></div>
+  </section>
 </div>
 
 <div class="overlay" id="bulkOverlay" hidden>
@@ -233,7 +253,7 @@ h1 span{font-weight:400;color:var(--ink-2)}
 <div class="overlay" id="authOverlay" hidden>
   <form class="sheet" id="authForm" role="dialog" aria-modal="true" aria-labelledby="authTitle" novalidate>
     <div class="sheet-head"><h3 id="authTitle">Sign in</h3><button class="close-pop" type="button" data-close="authOverlay" aria-label="Close">×</button></div>
-    <p class="sub">Anyone can view the calendar. Sign in is required only to make changes.</p>
+    <p class="sub">Sign in with your class account. Students can view the calendar and post class notices; only class admins can edit events.</p>
     <label for="aEmail">Email</label>
     <input id="aEmail" type="email" autocomplete="username">
     <label for="aPass">Password</label>
@@ -276,7 +296,7 @@ var fmtFull=new Intl.DateTimeFormat('en-IN',{weekday:'long',day:'numeric',month:
 var fmtMonth=new Intl.DateTimeFormat('en-IN',{month:'long'});
 function fmtTime(t){var hr=+t.slice(0,2),mi=t.slice(3,5);return (hr%12||12)+':'+mi+' '+(hr>=12?'PM':'AM')}
 
-var db=null, canWrite=false, loaded=false, loadTimer=null, activeCalendar='';
+var db=null, canWrite=false, canPostNotice=false, loaded=false, loadTimer=null, activeCalendar='', activeClass=null;
 var events=[];
 var view=new Date(); view=new Date(view.getFullYear(),view.getMonth(),1);
 var selected=todayKey();
@@ -432,7 +452,7 @@ function toast(t,undoItems){
 }
 function restoreDeleted(items){
   if(!canWrite||!sb||!activeCalendar)return Promise.reject({code:'invalid_argument'});
-  var rows=items.map(function(e){return {calendar_email:activeCalendar,title:e.title,date:e.date,time:e.time||'',notes:e.notes||'',color:e.color||'blue',created_at:e.createdAt||new Date().toISOString(),updated_at:new Date().toISOString()}});
+  var rows=items.map(function(e){return {class_id:activeClass,title:e.title,date:e.date,time:e.time||'',notes:e.notes||'',color:e.color||'blue',created_at:e.createdAt||new Date().toISOString(),updated_at:new Date().toISOString()}});
   return sb.from(TABLE).insert(rows).then(unwrap).then(fetchAll);
 }
 function errMsg(ex){
@@ -509,7 +529,7 @@ $('passToggle').addEventListener('click',function(){var show=$('aPass').type==='
 ['bulkOverlay','overlay','authOverlay'].forEach(function(id){$(id).addEventListener('click',function(e){if(e.target===$(id))$(id).hidden=true})});
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){['bulkOverlay','overlay','authOverlay'].forEach(function(id){if(!$(id).hidden)$(id).hidden=true})}});
 $('bulkOverlay').addEventListener('click',function(e){if(e.target===$('bulkOverlay'))$('bulkOverlay').hidden=true});
-$('bulkDeleteConfirm').addEventListener('click',function(){var ids=Object.keys(bulkSelected).filter(function(id){return bulkSelected[id]});if(!ids.length||!canWrite)return;if(!confirm('Delete '+ids.length+' selected event(s)? This cannot be undone.'))return;var deleted=events.filter(function(e){return ids.indexOf(e.id)>=0});var btn=$('bulkDeleteConfirm');btn.disabled=true;btn.textContent='Deleting…';$('bulkErr').textContent='';sb.from(TABLE).delete().in('id',ids).eq('calendar_email',activeCalendar).select('id').then(unwrap).then(function(res){if(!res.data||!res.data.length)throw {code:'invalid_argument'};return fetchAll()}).then(function(){$('bulkOverlay').hidden=true;toast('Deleted '+deleted.length+' event(s)',deleted)}).catch(function(ex){$('bulkErr').textContent=errMsg(ex)}).then(function(){btn.textContent='Delete selected';updateBulkCount()})});
+$('bulkDeleteConfirm').addEventListener('click',function(){var ids=Object.keys(bulkSelected).filter(function(id){return bulkSelected[id]});if(!ids.length||!canWrite)return;if(!confirm('Delete '+ids.length+' selected event(s)? This cannot be undone.'))return;var deleted=events.filter(function(e){return ids.indexOf(e.id)>=0});var btn=$('bulkDeleteConfirm');btn.disabled=true;btn.textContent='Deleting…';$('bulkErr').textContent='';sb.from(TABLE).delete().in('id',ids).eq('class_id',activeClass).select('id').then(unwrap).then(function(res){if(!res.data||!res.data.length)throw {code:'invalid_argument'};return fetchAll()}).then(function(){$('bulkOverlay').hidden=true;toast('Deleted '+deleted.length+' event(s)',deleted)}).catch(function(ex){$('bulkErr').textContent=errMsg(ex)}).then(function(){btn.textContent='Delete selected';updateBulkCount()})});
 /* ---------- controls ---------- */
 $('prev').addEventListener('click',function(){view=new Date(view.getFullYear(),view.getMonth()-1,1);renderGrid()});
 $('next').addEventListener('click',function(){view=new Date(view.getFullYear(),view.getMonth()+1,1);renderGrid()});
@@ -526,7 +546,7 @@ document.addEventListener('visibilitychange',function(){if(!document.hidden)chec
 var SUPABASE_URL='https://begwxweywclyqmbxseih.supabase.co';
 var SUPABASE_ANON_KEY='sb_publishable_tDnum7W22jZtoLUHNEib_A_V3dH2jbC';
 var TABLE='events';
-var sb=null, session=null, channel=null;
+var sb=null, session=null, channel=null, noticeChannel=null;
 
 function sbErr(res){
   var s=res.status, c=res.error&&res.error.code;
@@ -538,8 +558,8 @@ function unwrap(res){if(res.error)throw sbErr(res);return res}
 
 function fetchAll(){
   if(!sb)return Promise.resolve();
-  if(!activeCalendar){events=[];loaded=true;showNote('Sign in with an email to view that email calendar.');render();return Promise.resolve();}
-  return sb.from(TABLE).select('*').eq('calendar_email',activeCalendar).order('date',{ascending:true}).then(function(res){
+  if(!activeClass){events=[];loaded=true;showNote('Sign in with a valid class email to view this calendar.');render();return Promise.resolve();}
+  return sb.from(TABLE).select('*').eq('class_id',activeClass).order('date',{ascending:true}).then(function(res){
     if(res.error){if(!loaded)showNote("Couldn't load events. Check your connection and try again.");return}
     events=res.data.map(function(v){
       return {id:String(v.id),title:String(v.title||'').slice(0,120),date:String(v.date||'').slice(0,10),
@@ -552,8 +572,8 @@ function fetchAll(){
 
 function saveEvent(id,data){
   if(!canWrite||!sb)return Promise.reject({code:'invalid_argument'});
-  var row={calendar_email:activeCalendar,title:data.title,date:data.date,time:data.time,notes:data.notes,color:data.color,updated_at:new Date().toISOString()};
-  var q=id?sb.from(TABLE).update(row).eq('id',id).eq('calendar_email',activeCalendar).select('id'):sb.from(TABLE).insert(row);
+  var row={class_id:activeClass,title:data.title,date:data.date,time:data.time,notes:data.notes,color:data.color,updated_at:new Date().toISOString()};
+  var q=id?sb.from(TABLE).update(row).eq('id',id).eq('class_id',activeClass).select('id'):sb.from(TABLE).insert(row);
   return q.then(unwrap).then(function(res){
     if(id&&(!res.data||!res.data.length))throw {code:'invalid_argument'};
     return fetchAll();
@@ -563,40 +583,98 @@ function saveEventSeries(start,end,data){
   if(!canWrite||!sb)return Promise.reject({code:'invalid_argument'});
   var rows=[], cursor=parseKey(start), last=parseKey(end), stamp=new Date().toISOString();
   while(cursor<=last){
-    rows.push({calendar_email:activeCalendar,title:data.title,date:key(cursor),time:data.time,notes:data.notes,color:data.color,updated_at:stamp});
+    rows.push({class_id:activeClass,title:data.title,date:key(cursor),time:data.time,notes:data.notes,color:data.color,updated_at:stamp});
     cursor.setDate(cursor.getDate()+1);
   }
   return sb.from(TABLE).insert(rows).then(unwrap).then(fetchAll);
 }
 function deleteEvent(id){
   if(!canWrite||!sb)return Promise.reject({code:'invalid_argument'});
-  return sb.from(TABLE).delete().eq('id',id).eq('calendar_email',activeCalendar).select('id').then(unwrap).then(function(res){if(!res.data||!res.data.length)throw {code:'invalid_argument'};return fetchAll()});
+  return sb.from(TABLE).delete().eq('id',id).eq('class_id',activeClass).select('id').then(unwrap).then(function(res){if(!res.data||!res.data.length)throw {code:'invalid_argument'};return fetchAll()});
 }
 
 function startRealtime(){
   if(channel&&sb){sb.removeChannel(channel);channel=null;}
   if(!sb||!activeCalendar)return;
-  channel=sb.channel('events-changes-'+activeCalendar)
-    .on('postgres_changes',{event:'*',schema:'public',table:TABLE,filter:'calendar_email=eq.'+activeCalendar},function(){fetchAll()})
+  channel=sb.channel('events-changes-class-'+activeClass)
+    .on('postgres_changes',{event:'*',schema:'public',table:TABLE,filter:'class_id=eq.'+activeClass},function(){fetchAll()})
+    .subscribe();
+  if(noticeChannel&&sb)sb.removeChannel(noticeChannel);
+  noticeChannel=sb.channel('notices-changes-class-'+activeClass)
+    .on('postgres_changes',{event:'*',schema:'public',table:'notices'},function(){fetchNotices()})
     .subscribe();
 }
-function stopRealtime(){if(channel&&sb){sb.removeChannel(channel)}channel=null}
+function stopRealtime(){
+  if(channel&&sb)sb.removeChannel(channel);channel=null;
+  if(noticeChannel&&sb)sb.removeChannel(noticeChannel);noticeChannel=null;
+}
 
 function openAuth(){$('authOverlay').hidden=false;$('aEmail').focus()}
 
+function classForEmail(email){
+  email=String(email||'').trim().toLowerCase();
+  var admins={'er27@gmail.com':'23','er28@gmail.com':'24','er29@gmail.com':'25','er30@gmail.com':'26'};
+  if(admins[email])return admins[email];
+  var m=email.match(/^(23|24|25|26)[^@]*@tkmce[.]ac[.]in$/);
+  return m?m[1]:null;
+}
+function isAdminEmail(email){
+  return ['er27@gmail.com','er28@gmail.com','er29@gmail.com','er30@gmail.com'].indexOf(String(email||'').trim().toLowerCase())>=0;
+}
+function fetchNotices(){
+  var list=$('noticeList');
+  if(!sb||!activeClass){list.textContent='Sign in with a valid class account to view notices.';return Promise.resolve();}
+  return sb.from('notices').select('*').eq('class_id',activeClass).order('created_at',{ascending:false}).limit(100).then(function(res){
+    if(res.error){list.textContent='Could not load notices. Run the class calendar migration in Supabase.';return;}
+    list.replaceChildren();
+    if(!res.data.length){list.append(h('p',{class:'empty',text:'No notices posted yet.'}));return;}
+    res.data.forEach(function(n){
+      var item=h('article',{class:'notice-item'});
+      item.append(h('strong',{text:n.title}),h('p',{text:n.body}),h('div',{class:'notice-meta',text:String(n.author_email||'')+' · '+new Date(n.created_at).toLocaleString()}));
+      if(canWrite){
+        var del=h('button',{class:'btn danger',type:'button',text:'Delete'});
+        del.addEventListener('click',function(){
+          if(!confirm('Delete this notice?'))return;
+          sb.from('notices').delete().eq('id',n.id).then(function(x){if(x.error)toast('Could not delete notice');else fetchNotices()});
+        });
+        item.append(del);
+      }
+      list.append(item);
+    });
+  });
+}
+$('noticeForm').addEventListener('submit',function(e){
+  e.preventDefault();
+  if(!canPostNotice||!session||!activeClass)return;
+  var title=$('noticeTitle').value.trim(), body=$('noticeBody').value.trim();
+  if(!title||!body){$('noticeErr').textContent='Enter a title and notice.';return;}
+  var btn=$('noticePost');btn.disabled=true;$('noticeErr').textContent='';
+  sb.from('notices').insert({class_id:activeClass,title:title,body:body,author_email:session.user.email}).then(function(res){
+    if(res.error)throw res.error;
+    $('noticeTitle').value='';$('noticeBody').value='';return fetchNotices();
+  }).catch(function(){ $('noticeErr').textContent='Could not post. Check that the migration is applied and try again.';})
+  .then(function(){btn.disabled=false;});
+});
 function setSession(s){
-  session=s;canWrite=!!s;db=sb;activeCalendar=s&&s.user&&s.user.email?String(s.user.email).trim().toLowerCase():'';
+  session=s;db=sb;
+  activeCalendar=s&&s.user&&s.user.email?String(s.user.email).trim().toLowerCase():'';
+  activeClass=s?classForEmail(activeCalendar):null;
+  canWrite=!!(s&&activeClass&&isAdminEmail(activeCalendar));
+  canPostNotice=!!(s&&activeClass);
   $('loginBtn').hidden=!!s;
-  $('calendarInfo').textContent=s?'Calendar: '+activeCalendar+' — events are shared with anyone signed into this email.':'Sign in with a shared team email to open its calendar. Each email has its own calendar.';
+  $('calendarInfo').textContent=s?(activeClass?'Class '+activeClass+' calendar — '+(canWrite?'administrator access':'read-only student access')+'.':'This account is not assigned to a supported class.'):'Sign in with your TKMCE class account to view your class calendar and post notices.';
+  $('noticeInfo').textContent=activeClass?'Class '+activeClass+' notices are visible only to signed-in members of this class.':'Sign in with your TKMCE class account to view and post notices.';
+  $('noticeForm').hidden=!canPostNotice;
   $('outBtn').hidden=!s;
   $('editLoginBtn').hidden=canWrite;
   if(s){
-    $('authOverlay').hidden=true;showNote('Loading events…');
-    startRealtime();fetchAll();
+    $('authOverlay').hidden=true;
+    if(activeClass){showNote('Loading class '+activeClass+'…');startRealtime();fetchAll();fetchNotices();}
+    else {stopRealtime();events=[];loaded=true;showNote('This email is not assigned to a class.');render();$('noticeList').textContent='No class access for this account.';}
   }else{
     stopRealtime();$('authOverlay').hidden=true;
     if(!$('overlay').hidden)closeForm();
-    fetchAll();
+    events=[];loaded=true;render();fetchNotices();
   }
   render();
 }
