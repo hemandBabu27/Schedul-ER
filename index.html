@@ -107,6 +107,8 @@ h1 span{font-weight:400;color:var(--ink-2)}
 .noticeboard h2{margin:0;font-size:20px}
 .notice-form{display:grid;gap:8px;margin:10px 0 14px}
 .notice-form input,.notice-form textarea{width:100%;font:inherit;font-size:15px;background:var(--fill);border:1px solid var(--line);border-radius:10px;padding:9px 11px;color:var(--ink)}
+#noticeTextFields{display:grid;gap:10px}
+#noticeTextFields[hidden]{display:none}
 .notice-form textarea{min-height:54px;resize:vertical}
 #noticeList{max-height:430px;overflow-y:auto;overscroll-behavior:contain;padding:0 6px 0 0}
 .notice-item{padding:9px 12px;margin:6px 0;border:1px solid var(--line);border-radius:12px;background:#fff}
@@ -227,7 +229,7 @@ h1 span{font-weight:400;color:var(--ink-2)}
       <div id="noticeTextFields">
         <input id="noticeTitle" type="text" maxlength="120" placeholder="Notice title" aria-label="Notice title">
         <textarea id="noticeBody" maxlength="2000" placeholder="Write a notice for your class…" aria-label="Notice message"></textarea>
-      </div></textarea>
+      </div>
       <label class="notice-poll-toggle"><input id="noticePollOn" type="checkbox"> Add a poll</label>
       <div id="noticePollFields" hidden>
         <input id="pollQuestion" type="text" maxlength="160" placeholder="Poll question">
@@ -1138,8 +1140,9 @@ function countRegisteredUsers(){
   sb.rpc('get_registered_user_count')
     .then(function(res){
       if(res.error)throw res.error;
-      var count=Number(res.data);
-      if(!Number.isSafeInteger(count)||count<0)throw new Error('The database returned an invalid user count.');
+      var total=Number(res.data);
+      if(!Number.isSafeInteger(total)||total<0)throw new Error('The database returned an invalid user count.');
+      var count=Math.max(0,total-4);
       el.textContent=count.toLocaleString()+' '+(count===1?'registered user':'registered users');
     })
     .catch(function(err){
