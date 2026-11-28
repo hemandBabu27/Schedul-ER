@@ -746,6 +746,7 @@ function refreshPushStatus(){
     var enabled=pushEnabledOnThisDevice;
     button.textContent=enabled?'Background notifications enabled on this device':'Enable background notifications on this device';
     status.textContent=enabled?'This device is subscribed. Push notifications can arrive while the browser is closed.':'Enable once on each device to receive background notifications.';
+    refreshProfileNotificationStatus();
   }).catch(function(){status.textContent='Could not check this device push subscription.'});
 }
 function enableBackgroundPush(button,status){
