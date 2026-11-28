@@ -260,6 +260,8 @@ h1 span{font-weight:400;color:var(--ink-2)}
   <form class="sheet" id="authForm" role="dialog" aria-modal="true" aria-labelledby="authTitle" novalidate>
     <div class="sheet-head"><h3 id="authTitle">Sign in</h3><button class="close-pop" type="button" data-close="authOverlay" aria-label="Close">×</button></div>
     <p class="sub" id="authDescription">Use your TKMCE-style ID and password. The ID is only used to assign your class calendar; it does not need to be a real mailbox.</p>
+    <label for="aName" id="aNameLabel" hidden>Display name</label>
+    <input id="aName" type="text" maxlength="80" autocomplete="name" placeholder="Your name" hidden>
     <label for="aEmail">TKMCE ID</label>
     <input id="aEmail" type="email" autocomplete="username" placeholder="23xxxx@tkmce.ac.in" required>
     <label for="aPass">Password</label>
@@ -646,7 +648,7 @@ function fetchNotices(){
     if(!res.data.length){list.append(h('p',{class:'empty',text:'No notices posted yet.'}));return;}
     res.data.forEach(function(n){
       var item=h('article',{class:'notice-item'});
-      item.append(h('strong',{text:n.title}),h('p',{text:n.body}),h('div',{class:'notice-meta',text:String(n.author_email||'')+' · '+new Date(n.created_at).toLocaleString()}));
+      item.append(h('strong',{text:n.title}),h('p',{text:n.body}),h('div',{class:'notice-meta',text:String(n.author_name||'')+(n.author_name?' · ':'')+new Date(n.created_at).toLocaleString()}));
       var isNoticeAuthor=!!(session&&session.user&&session.user.email&&String(session.user.email).toLowerCase()===String(n.author_email||'').toLowerCase());
       if(canWrite||isNoticeAuthor){
         var del=h('button',{class:'btn danger',type:'button',text:'Delete'});
@@ -673,7 +675,7 @@ $('noticeForm').addEventListener('submit',function(e){
   var title=$('noticeTitle').value.trim(), body=$('noticeBody').value.trim();
   if(!title||!body){$('noticeErr').textContent='Enter a title and notice.';return;}
   var btn=$('noticePost');btn.disabled=true;$('noticeErr').textContent='';
-  sb.from('notices').insert({class_id:activeClass,title:title,body:body,author_email:session.user.email}).then(function(res){
+  sb.from('notices').insert({class_id:activeClass,title:title,body:body,author_email:session.user.email,author_name:(session.user.user_metadata&&session.user.user_metadata.full_name)||session.user.email}).then(function(res){
     if(res.error)throw res.error;
     $('noticeTitle').value='';$('noticeBody').value='';return fetchNotices();
   }).catch(function(){ $('noticeErr').textContent='Could not post. Check that the migration is applied and try again.';})
@@ -713,6 +715,7 @@ function setAuthMode(mode){
   authMode=mode;
   var signup=mode==='signup';
   $('authTitle').textContent=signup?'Create account':'Sign in';
+  $('aNameLabel').hidden=!signup;$('aName').hidden=!signup;$('aName').required=signup;
   $('authDescription').textContent=signup?'Create an account using a TKMCE-style ID (it does not need to be a real inbox). The starting digits assign your class calendar; no email code is needed.':'Use your TKMCE email and password. Students can view their assigned class calendar and post notices; only class admins can edit events.';
   $('aBtn').textContent=signup?'Create account':'Sign in';
   $('aPass').autocomplete=signup?'new-password':'current-password';
@@ -724,14 +727,15 @@ $('authSwitch').addEventListener('click',function(){setAuthMode(authMode==='sign
 $('authForm').addEventListener('submit',function(e){
   e.preventDefault();
   if(!sb){$('aErr').textContent='Authentication is not available. Reload and try again.';return}
-  var email=$('aEmail').value.trim().toLowerCase(), pass=$('aPass').value;
+  var email=$('aEmail').value.trim().toLowerCase(), pass=$('aPass').value, displayName=$('aName').value.trim();
   if(!email||!pass){$('aErr').textContent='Enter your email and password.';return}
   if(!validAccountEmail(email)){$('aErr').textContent='Use a TKMCE-style ID ending in @tkmce.ac.in.';return}
   if(authMode==='signup'&&!/^(23|24|25|26).+@tkmce[.]ac[.]in$/.test(email)){$('aErr').textContent='Use an ID beginning with 23, 24, 25 or 26 and ending in @tkmce.ac.in.';return}
+  if(authMode==='signup'&&!displayName){$('aErr').textContent='Enter your name to display on the noticeboard.';return}
   if(authMode==='signup'&&pass.length<8){$('aErr').textContent='Choose a password with at least 8 characters.';return}
   $('aBtn').disabled=true;$('aErr').textContent='';
   var action=authMode==='signup'
-    ?sb.auth.signUp({email:email,password:pass})
+    ?sb.auth.signUp({email:email,password:pass,options:{data:{full_name:displayName}}})
     :sb.auth.signInWithPassword({email:email,password:pass});
   action.then(function(res){
     if(res.error){$('aErr').textContent=res.error.message|| (authMode==='signup'?'Could not create account.':'Could not sign in.');return}
