@@ -47,6 +47,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 .c-gray{--c:#8e8e93;--t:#efeff1}
 
 .top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;padding-right:50px}
+.month-heading{display:flex;align-items:center;gap:12px;min-width:0}
+#noticeJumpBtn{white-space:nowrap}
+@media(max-width:640px){.month-heading{flex-wrap:wrap;gap:8px}}
 #profileBtn{position:fixed;top:10px;right:max(12px,env(safe-area-inset-right));z-index:100;width:42px;height:42px;min-width:42px;padding:0;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:#fff;font-size:17px;font-weight:700;border:2px solid #fff;box-shadow:0 2px 10px #0002}
 #profileBtn:hover{background:#086bd2}
 #profileBtn[hidden]{display:none}
@@ -202,7 +205,10 @@ h1 span{font-weight:400;color:var(--ink-2)}
 <div class="wrap">
   
   <header class="top">
-    <h1 id="monthTitle"></h1>
+    <div class="month-heading">
+      <h1 id="monthTitle"></h1>
+      <button class="btn" id="noticeJumpBtn" type="button">Notice Board</button>
+    </div>
     <div class="controls">
       <button class="btn icon" id="prev" type="button" aria-label="Previous month"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
       <button class="btn" id="todayBtn" type="button">Today</button>
@@ -238,7 +244,7 @@ h1 span{font-weight:400;color:var(--ink-2)}
     </section>
 
     <aside class="side">
-  <section class="noticeboard" aria-labelledby="noticeHead">
+  <section class="noticeboard" id="noticeboard" tabindex="-1" aria-labelledby="noticeHead">
     <h2 id="noticeHead">Class noticeboard</h2>
     <p class="sub" id="noticeInfo">Sign in with your TKMCE class account to view and post notices.</p>
     <form class="notice-form" id="noticeForm" hidden>
@@ -907,6 +913,11 @@ function refreshProfileNotificationStatus(){
     ?'Notifications are enabled on this device. Background alerts can arrive while the browser is closed.'
     :allowed?'Browser permission is allowed, but background notifications are not enabled yet.':'Notifications are not enabled on this device.';
 }
+$('noticeJumpBtn').addEventListener('click',function(){
+  var section=$('noticeboard');
+  section.scrollIntoView({behavior:'smooth',block:'start'});
+  section.focus({preventScroll:true});
+});
 $('monthlyReportToggle').addEventListener('click',function(){
   var panel=$('monthlyReportPanel'),open=panel.hidden;
   panel.hidden=!open;
