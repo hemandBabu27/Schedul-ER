@@ -4,7 +4,7 @@ A four-class calendar and class-specific noticeboard for TKMCE, built with Supab
 
 ## Features
 - Four separate class calendars (23, 24, 25, 26) in one website and Supabase project
-- Students sign in with their TKMCE email and can view only their own class calendar
+- Students sign in with their TKMCE Google account and can view only their own class calendar
 - Only the assigned class administrator can add, edit, bulk-delete, or delete calendar events
 - Signed-in class members can post notices to their own class noticeboard
 - Noticeboards are private to members of the matching class
@@ -24,19 +24,28 @@ The four administrator addresses are exact matches. Student addresses must start
 
 ## Google sign-in setup
 
-The login dialog includes **Continue with Google**. Configure OAuth once before using it:
+The login dialog provides **Continue with Google** through Supabase Auth. The production site is `https://schedul-er.vercel.app`.
 
-1. In [Google Cloud Console](https://console.cloud.google.com/), create/select a project and open **Google Auth Platform**.
-2. Configure the OAuth consent screen. Choose **Internal** only if every allowed user (including the four admins) belongs to the same Google Workspace organisation. Otherwise choose **External**.
-3. Create an OAuth client ID with application type **Web application**.
-4. Add your deployed Schedul-ER website origin (for example, `https://your-site.vercel.app`) under **Authorized JavaScript origins**.
-5. Under **Authorized redirect URIs**, add this exact Supabase callback:
-   `https://begwxweywclyqmbxseih.supabase.co/auth/v1/callback`
-6. Copy the Google **Client ID** and **Client Secret**.
-7. In Supabase Dashboard → **Authentication → Sign In / Providers → Google**, enable Google and paste the Client ID and Client Secret. Save.
-8. In Supabase Dashboard → **Authentication → URL Configuration**, set **Site URL** to your deployed Schedul-ER URL and add that exact URL to **Redirect URLs**. Add any preview or localhost URLs only if you use them.
+### Google Cloud configuration
 
-Students must sign in with their `@tkmce.ac.in` Google account and the address must start with their class number (23, 24, 25, or 26). The four configured admin accounts remain the exact `er27@gmail.com` through `er30@gmail.com` addresses. Other Google accounts may complete Google's sign-in screen but receive no calendar or noticeboard access.
+- OAuth app audience: **External**.
+- While the app is in **Testing**, add every Google account you want to test under **Google Auth Platform → Audience → Test users**. This includes student TKMCE accounts and the four admin accounts.
+- OAuth client type: **Web application**.
+- Authorized JavaScript origins: left blank (Supabase handles the OAuth exchange).
+- Authorized redirect URI:
+  `https://begwxweywclyqmbxseih.supabase.co/auth/v1/callback`
+- The consent-screen user-support email is the configured Google Group address. Developer contact information is managed separately by Google.
+
+### Supabase configuration
+
+- **Authentication → Sign In / Providers → Google**: enabled, with the Google OAuth Client ID and Client Secret saved in Supabase.
+- **Authentication → URL Configuration → Site URL**: `https://schedul-er.vercel.app`.
+- **Redirect URLs**: `https://schedul-er.vercel.app`.
+
+Keep the Google OAuth Client Secret in Supabase's provider settings only. Never commit it, a downloaded credentials JSON file, or any secret to this repository or frontend code. The frontend uses the Supabase publishable/anon key and calls `signInWithOAuth({ provider: 'google' })`.
+
+Students must use a Google account whose email starts with their class number (23, 24, 25, or 26) and ends in `@tkmce.ac.in`. The four administrator accounts are the exact addresses `er27@gmail.com`, `er28@gmail.com`, `er29@gmail.com`, and `er30@gmail.com`. Google sign-in does not grant access by itself: the app and Supabase Row Level Security still enforce this mapping. Other accounts are denied class access.
+
 
 ## Supabase setup
 
