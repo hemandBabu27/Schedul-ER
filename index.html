@@ -1114,34 +1114,23 @@ document.addEventListener('visibilitychange',function(){if(!document.hidden&&sb)
 
 render();
 
-/* ---------- privacy-friendly unique visitor counter ----------
-// One random browser ID per browser profile; no IP address or fingerprint is collected.
-// Requires a Supabase table named "visitors" (SQL setup is provided separately).
-*/
-function countVisitor(){
+/* ---------- registered Supabase account counter ----------
+ // Reads only an aggregate count through a restricted SECURITY DEFINER RPC.
+ // No user emails, IDs, or other account details are exposed to the browser.
+ */
+function countRegisteredUsers(){
   var el=$('visitorCounter');
   if(!el||!sb)return;
-  el.textContent='… visitors';
-  var visitorId;
-  try{
-    visitorId=localStorage.getItem('schedul-er-visitor-id');
-    if(!visitorId){
-      visitorId=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():('v-'+Date.now()+'-'+Math.random().toString(36).slice(2));
-      localStorage.setItem('schedul-er-visitor-id',visitorId);
-    }
-  }catch(e){el.textContent='visitors unavailable';return}
-  sb.from('visitors').upsert({visitor_id:visitorId},{onConflict:'visitor_id',ignoreDuplicates:true})
+  el.textContent='Loading registered users…';
+  sb.rpc('get_registered_user_count')
     .then(function(res){
       if(res.error)throw res.error;
-      return sb.from('visitors').select('visitor_id',{count:'exact',head:true});
-    })
-    .then(function(res){
-      if(res.error)throw res.error;
-      el.textContent=(res.count||0).toLocaleString()+' '+((res.count||0)===1?'visitor':'visitors');
+      var count=Number(res.data||0);
+      el.textContent=count.toLocaleString()+' '+(count===1?'registered user':'registered users');
     })
     .catch(function(err){
-      console.warn('Visitor counter unavailable. Check the visitors table and RLS policies.',err);
-      el.textContent='unavailable visitors';
+      console.warn('Registered-user count unavailable. Apply the registered-user-count migration in Supabase.',err);
+      el.textContent='Registered-user count unavailable';
     });
 }
 
@@ -1152,7 +1141,7 @@ if(!window.supabase){
 }else{
   try{
     sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storage:window.localStorage}});
-    countVisitor();
+    countRegisteredUsers();
     sb.auth.onAuthStateChange(function(ev,s){setTimeout(function(){setSession(s)},0)});
     sb.auth.getSession().then(function(res){setSession(res.data.session)}).catch(function(){setSession(null)});
   }catch(err){
