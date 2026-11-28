@@ -119,6 +119,9 @@ h1 span{font-weight:400;color:var(--ink-2)}
 .when{flex:none;font-size:13px;font-weight:600;color:var(--ink-2);background:var(--fill);border-radius:999px;padding:3px 10px;white-space:nowrap}
 .when.soon{color:var(--accent);background:#e5f1ff}
 .when.now{background:var(--today);color:#fff}
+.event-tag{display:inline-flex;align-items:center;width:max-content;max-width:100%;margin-top:3px;padding:1px 7px;border-radius:999px;background:var(--t);color:var(--c);font-size:12px;font-weight:700;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag-custom{background:#f1e8fa;color:#7b2cbf}
+.sheet select{width:100%;font:inherit;font-size:16px;background:var(--fill);border:1px solid transparent;border-radius:10px;padding:10px 12px;color:var(--ink)}
 .empty{color:var(--ink-2);padding:12px 0;font-size:15px;border-bottom:1px solid var(--line)}
 .side .btn{margin-top:12px}
 
@@ -235,6 +238,9 @@ h1 span{font-weight:400;color:var(--ink-2)}
     </div>
     <div id="rangeHint" class="sub" hidden>Creates one event for every date, inclusive, with the same title, time, notes and colour.</div>
     <div id="rangeTimeRow" hidden><label for="fRangeTime">Time (optional)</label><input id="fRangeTime" type="time"></div>
+    <label for="fCategory">Event category</label>
+    <select id="fCategory"><option value="Assignment">Assignment</option><option value="Exam">Exam</option><option value="Presentation">Presentation</option><option value="Custom">Custom</option></select>
+    <div id="customCategoryWrap" hidden><label for="fCustomCategory">Custom tag name</label><input id="fCustomCategory" type="text" maxlength="32" placeholder="e.g. Workshop, Holiday, Meeting"></div>
     <label for="fNotes">Notes</label>
     <textarea id="fNotes" maxlength="1000"></textarea>
     <div class="lg" id="colorLbl">Colour</div>
@@ -310,6 +316,8 @@ var lastToday=todayKey();
 var editingId=null, lastFocus=null, delArmed=false, delTimer=null, toastTimer=null, pendingUndo=null;
 
 function status(date){var d=daysBetween(todayKey(),date);return d<0?'past':(d<=REMIND_DAYS?'on':'far')}
+function categoryName(e){return String(e.category||'Custom')}
+function categoryClass(e){return categoryName(e).toLowerCase()==='custom'?'tag-custom':''}
 function cmp(a,b){return a.date<b.date?-1:a.date>b.date?1:(a.time||'')<(b.time||'')?-1:(a.time||'')>(b.time||'')?1:a.title.localeCompare(b.title)}
 function eventsByDate(){var m={};events.forEach(function(e){(m[e.date]=m[e.date]||[]).push(e)});return m}
 function showNote(t){var n=$('note');if(t){n.textContent=t;n.hidden=false}else{n.hidden=true}}
@@ -318,7 +326,7 @@ function showNote(t){var n=$('note');if(t){n.textContent=t;n.hidden=false}else{n
 function chip(e){
   return h('button',{type:'button',class:'chip c-'+e.color+' '+status(e.date),title:e.title,
     onclick:function(ev){ev.stopPropagation();openForm(e.id)}},
-    h('i'),h('b',{text:e.title}));
+    h('i'),h('b',{text:e.title}),h('span',{class:'event-tag '+categoryClass(e),text:categoryName(e)}));
 }
 
 function renderGrid(){
@@ -359,7 +367,7 @@ function renderGrid(){
 function eventRow(e,withWhen){
   var d=daysBetween(todayKey(),e.date);
   var meta=withWhen?fmtShort.format(parseKey(e.date))+(e.time?' · '+fmtTime(e.time):''):(e.time?fmtTime(e.time):'All day');
-  var txt=h('div',{class:'txt'},h('div',{class:'t',text:e.title}),h('div',{class:'m',text:meta}));
+  var txt=h('div',{class:'txt'},h('div',{class:'t',text:e.title}),h('span',{class:'event-tag '+categoryClass(e),text:categoryName(e)}),h('div',{class:'m',text:meta}));
   if(!withWhen&&e.notes)txt.append(h('div',{class:'m',text:e.notes.length>140?e.notes.slice(0,140)+'…':e.notes}));
   var row=h('button',{type:'button',class:'row c-'+e.color,onclick:function(){openForm(e.id)}},h('span',{class:'bar'}),txt);
   if(withWhen){
@@ -419,6 +427,9 @@ function openForm(id,dateKey){
   fDate.value=ev?ev.date:(dateKey||selected);
   fTime.value=ev?ev.time:'';
   fNotes.value=ev?ev.notes:'';
+  $('fCategory').value=['Assignment','Exam','Presentation'].indexOf(ev?ev.category:'')>=0?ev.category:'Custom';
+  $('fCustomCategory').value=ev&&['Assignment','Exam','Presentation','Custom'].indexOf(ev.category)<0?ev.category:'';
+  $('customCategoryWrap').hidden=$('fCategory').value!=='Custom';
   setColor(ev?ev.color:'blue');
   $('fRangeMode').checked=false;
   $('fStartDate').value=dateKey||selected;
@@ -427,7 +438,7 @@ function openForm(id,dateKey){
   $('singleDateRow').hidden=false;$('rangeDateRow').hidden=true;$('rangeHint').hidden=true;$('rangeTimeRow').hidden=true;
   $('fRangeMode').disabled=ro;
   setErr('');disarm();
-  [fTitle,fDate,fTime,fNotes,$('fStartDate'),$('fEndDate'),$('fRangeTime')].concat([].slice.call(document.querySelectorAll('input[name=color]'))).forEach(function(el){el.disabled=ro});
+  [fTitle,fDate,fTime,fNotes,$('fCategory'),$('fCustomCategory'),$('fStartDate'),$('fEndDate'),$('fRangeTime')].concat([].slice.call(document.querySelectorAll('input[name=color]'))).forEach(function(el){el.disabled=ro});
   saveBtn.hidden=ro;saveBtn.textContent=ev?'Save':'Add';
   delBtn.hidden=ro||!ev;
   $('editLoginBtn').hidden=!ro||!!session;
@@ -458,7 +469,7 @@ function toast(t,undoItems){
 }
 function restoreDeleted(items){
   if(!canWrite||!sb||!activeCalendar)return Promise.reject({code:'invalid_argument'});
-  var rows=items.map(function(e){return {class_id:activeClass,title:e.title,date:e.date,time:e.time||'',notes:e.notes||'',color:e.color||'blue',created_at:e.createdAt||new Date().toISOString(),updated_at:new Date().toISOString()}});
+  var rows=items.map(function(e){return {class_id:activeClass,title:e.title,date:e.date,time:e.time||'',notes:e.notes||'',color:e.color||'blue',category:e.category||'Custom',created_at:e.createdAt||new Date().toISOString(),updated_at:new Date().toISOString()}});
   return sb.from(TABLE).insert(rows).then(unwrap).then(fetchAll);
 }
 function errMsg(ex){
@@ -484,7 +495,9 @@ $('form').addEventListener('submit',function(e){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{4}-\d{2}-\d{2}$/.test(end)){setErr('Choose valid start and end dates.');return}
   if(end<start){setErr('End date must be on or after the start date.');$('fEndDate').focus();return}
   var existing=editingId?events.find(function(x){return x.id===editingId}):null;
-  var data={title:title,date:start,time:range?$('fRangeTime').value:(fTime.value||''),notes:fNotes.value.trim(),color:getColor(),
+  var category=$('fCategory').value==='Custom'?($('fCustomCategory').value.trim()||'Custom'):$('fCategory').value;
+  if(category.length>32){setErr('Custom tag must be 32 characters or fewer.');return}
+  var data={title:title,date:start,time:range?$('fRangeTime').value:(fTime.value||''),notes:fNotes.value.trim(),color:getColor(),category:category,
     createdAt:existing&&existing.createdAt?existing.createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
   var wasEdit=!!existing, id=editingId;
   saveBtn.disabled=true;setErr('');
@@ -507,6 +520,7 @@ delBtn.addEventListener('click',function(){
     .then(function(){delBtn.disabled=false});
 });
 
+$('fCategory').addEventListener('change',function(){$('customCategoryWrap').hidden=this.value!=='Custom';});
 $('fRangeMode').addEventListener('change',function(){
   var on=this.checked;
   $('singleDateRow').hidden=on;
@@ -570,7 +584,7 @@ function fetchAll(){
     events=res.data.map(function(v){
       return {id:String(v.id),title:String(v.title||'').slice(0,120),date:String(v.date||'').slice(0,10),
         time:/^\d{2}:\d{2}/.test(v.time||'')?String(v.time).slice(0,5):'',notes:String(v.notes||''),
-        color:COLORS.indexOf(v.color)>=0?v.color:'blue',createdAt:String(v.created_at||'')};
+        color:COLORS.indexOf(v.color)>=0?v.color:'blue',category:String(v.category||'Custom'),createdAt:String(v.created_at||'')};
     }).filter(function(e){return e.title&&/^\d{4}-\d{2}-\d{2}$/.test(e.date)});
     loaded=true;showNote('');render();
   });
@@ -578,7 +592,7 @@ function fetchAll(){
 
 function saveEvent(id,data){
   if(!canWrite||!sb)return Promise.reject({code:'invalid_argument'});
-  var row={class_id:activeClass,title:data.title,date:data.date,time:data.time,notes:data.notes,color:data.color,updated_at:new Date().toISOString()};
+  var row={class_id:activeClass,title:data.title,date:data.date,time:data.time,notes:data.notes,color:data.color,category:data.category||'Custom',updated_at:new Date().toISOString()};
   var q=id?sb.from(TABLE).update(row).eq('id',id).eq('class_id',activeClass).select('id'):sb.from(TABLE).insert(row);
   return q.then(unwrap).then(function(res){
     if(id&&(!res.data||!res.data.length))throw {code:'invalid_argument'};
@@ -589,7 +603,7 @@ function saveEventSeries(start,end,data){
   if(!canWrite||!sb)return Promise.reject({code:'invalid_argument'});
   var rows=[], cursor=parseKey(start), last=parseKey(end), stamp=new Date().toISOString();
   while(cursor<=last){
-    rows.push({class_id:activeClass,title:data.title,date:key(cursor),time:data.time,notes:data.notes,color:data.color,updated_at:stamp});
+    rows.push({class_id:activeClass,title:data.title,date:key(cursor),time:data.time,notes:data.notes,color:data.color,category:data.category||'Custom',updated_at:stamp});
     cursor.setDate(cursor.getDate()+1);
   }
   return sb.from(TABLE).insert(rows).then(unwrap).then(fetchAll);
@@ -617,6 +631,7 @@ function stopRealtime(){
 
 function openAuth(){$('authOverlay').hidden=false;$('aEmail').focus()}
 
+function classLabel(id){return {'23':'ER-27','24':'ER-28','25':'ER-29','26':'ER-30'}[id]||'Class '+id;}
 function classForEmail(email){
   email=String(email||'').trim().toLowerCase();
   var admins={'er27@gmail.com':'23','er28@gmail.com':'24','er29@gmail.com':'25','er30@gmail.com':'26'};
@@ -668,14 +683,15 @@ function setSession(s){
   canWrite=!!(s&&activeClass&&isAdminEmail(activeCalendar));
   canPostNotice=!!(s&&activeClass);
   $('loginBtn').hidden=!!s;
-  $('calendarInfo').textContent=s?(activeClass?'Class '+activeClass+' calendar — '+(canWrite?'administrator access':'read-only student access')+'.':'This account is not assigned to a supported class.'):'Sign in with your TKMCE class account to view your class calendar and post notices.';
-  $('noticeInfo').textContent=activeClass?'Class '+activeClass+' notices are visible only to signed-in members of this class.':'Sign in with your TKMCE class account to view and post notices.';
+  $('calendarInfo').textContent=s?(activeClass?classLabel(activeClass)+' calendar — '+(canWrite?'administrator access':'read-only student access')+'.':'This account is not assigned to a supported class.'):'Sign in with your TKMCE class account to view your class calendar and post notices.';
+  $('noticeHead').textContent=activeClass?classLabel(activeClass)+' noticeboard':'Class noticeboard';
+  $('noticeInfo').textContent=activeClass?classLabel(activeClass)+' notices are visible only to signed-in members of this class.':'Sign in with your TKMCE class account to view and post notices.';
   $('noticeForm').hidden=!canPostNotice;
   $('outBtn').hidden=!s;
   $('editLoginBtn').hidden=canWrite;
   if(s){
     $('authOverlay').hidden=true;
-    if(activeClass){showNote('Loading class '+activeClass+'…');startRealtime();fetchAll();fetchNotices();}
+    if(activeClass){showNote('Loading '+classLabel(activeClass)+'…');startRealtime();fetchAll();fetchNotices();}
     else {stopRealtime();events=[];loaded=true;showNote('This email is not assigned to a class.');render();$('noticeList').textContent='No class access for this account.';}
   }else{
     stopRealtime();$('authOverlay').hidden=true;
