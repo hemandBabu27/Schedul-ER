@@ -81,6 +81,8 @@ create table if not exists public.notices (
 );
 
 alter table public.notices enable row level security;
+grant select, insert, update, delete on public.notices to authenticated;
+grant usage, select on sequence public.notices_id_seq to authenticated;
 drop policy if exists "class members can read notices" on public.notices;
 drop policy if exists "class members can post notices" on public.notices;
 drop policy if exists "class admins can update notices" on public.notices;
@@ -112,11 +114,12 @@ create index if not exists notices_class_created_idx on public.notices(class_id,
 -- Enable realtime for notices if the project publication exists.
 do $$
 begin
-  if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
-     and not exists (
-       select 1 from pg_publication_tables
-       where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'notices'
-     ) then
-    alter publication supabase_realtime add table public.notices;
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'events') then
+      alter publication supabase_realtime add table public.events;
+    end if;
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'notices') then
+      alter publication supabase_realtime add table public.notices;
+    end if;
   end if;
 end $$;
