@@ -259,9 +259,9 @@ h1 span{font-weight:400;color:var(--ink-2)}
 <div class="overlay" id="authOverlay" hidden>
   <form class="sheet" id="authForm" role="dialog" aria-modal="true" aria-labelledby="authTitle" novalidate>
     <div class="sheet-head"><h3 id="authTitle">Sign in</h3><button class="close-pop" type="button" data-close="authOverlay" aria-label="Close">×</button></div>
-    <p class="sub" id="authDescription">Use your TKMCE email and password. Students can view their assigned class calendar and post notices; only class admins can edit events.</p>
-    <label for="aEmail">TKMCE email</label>
-    <input id="aEmail" type="email" autocomplete="username" placeholder="yourname@tkmce.ac.in" required>
+    <p class="sub" id="authDescription">Use your TKMCE-style ID and password. The ID is only used to assign your class calendar; it does not need to be a real mailbox.</p>
+    <label for="aEmail">TKMCE ID</label>
+    <input id="aEmail" type="email" autocomplete="username" placeholder="23xxxx@tkmce.ac.in" required>
     <label for="aPass">Password</label>
     <div style="display:flex;gap:8px;align-items:center"><input id="aPass" type="password" autocomplete="current-password" style="flex:1;min-width:0" required><button class="btn" id="passToggle" type="button" aria-pressed="false">Show</button></div>
     <div class="err" id="aErr" role="alert"></div>
@@ -713,7 +713,7 @@ function setAuthMode(mode){
   authMode=mode;
   var signup=mode==='signup';
   $('authTitle').textContent=signup?'Create account':'Sign in';
-  $('authDescription').textContent=signup?'Create your Schedul-ER account with your official TKMCE email. Your class calendar is assigned automatically from the first two digits of your email.':'Use your TKMCE email and password. Students can view their assigned class calendar and post notices; only class admins can edit events.';
+  $('authDescription').textContent=signup?'Create an account using a TKMCE-style ID (it does not need to be a real inbox). The starting digits assign your class calendar; no email code is needed.':'Use your TKMCE email and password. Students can view their assigned class calendar and post notices; only class admins can edit events.';
   $('aBtn').textContent=signup?'Create account':'Sign in';
   $('aPass').autocomplete=signup?'new-password':'current-password';
   $('authSwitchText').textContent=signup?'Already have an account?':'New to Schedul-ER?';
@@ -726,18 +726,18 @@ $('authForm').addEventListener('submit',function(e){
   if(!sb){$('aErr').textContent='Authentication is not available. Reload and try again.';return}
   var email=$('aEmail').value.trim().toLowerCase(), pass=$('aPass').value;
   if(!email||!pass){$('aErr').textContent='Enter your email and password.';return}
-  if(!validAccountEmail(email)){$('aErr').textContent='Use your official @tkmce.ac.in email address.';return}
-  if(authMode==='signup'&&!/^(23|24|25|26).+@tkmce[.]ac[.]in$/.test(email)){$('aErr').textContent='Your TKMCE email must start with your assigned class digits (23, 24, 25 or 26).';return}
+  if(!validAccountEmail(email)){$('aErr').textContent='Use a TKMCE-style ID ending in @tkmce.ac.in.';return}
+  if(authMode==='signup'&&!/^(23|24|25|26).+@tkmce[.]ac[.]in$/.test(email)){$('aErr').textContent='Use an ID beginning with 23, 24, 25 or 26 and ending in @tkmce.ac.in.';return}
   if(authMode==='signup'&&pass.length<8){$('aErr').textContent='Choose a password with at least 8 characters.';return}
   $('aBtn').disabled=true;$('aErr').textContent='';
   var action=authMode==='signup'
-    ?sb.auth.signUp({email:email,password:pass,options:{emailRedirectTo:window.location.origin+window.location.pathname}})
+    ?sb.auth.signUp({email:email,password:pass})
     :sb.auth.signInWithPassword({email:email,password:pass});
   action.then(function(res){
     if(res.error){$('aErr').textContent=res.error.message|| (authMode==='signup'?'Could not create account.':'Could not sign in.');return}
     try{localStorage.setItem('schedul-er-last-email',email)}catch(ignore){}
     if(authMode==='signup'&&!res.data.session){
-      $('aErr').textContent='Account created. Check your TKMCE inbox and confirm your email, then sign in.';
+      $('aErr').textContent='Account created, but email confirmation is still enabled in Supabase. Ask the project owner to disable Confirm email in Authentication settings, then try again.';
       $('aErr').style.color='var(--accent)';
       $('aPass').value='';
     }else{
