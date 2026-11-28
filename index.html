@@ -117,7 +117,6 @@ h1 span{font-weight:400;color:var(--ink-2)}
 .notice-poll-toggle{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink-2)}
 .notice-poll-toggle input{width:auto}
 #noticePollFields{display:grid;gap:8px}
-.notice-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .notice-like.liked,.poll-vote.voted{color:var(--accent);border-color:var(--accent)}
 .notice-pinned{background:#fffdf4;padding:12px;border-radius:10px;border:1px solid #f0dfaa;margin:8px 0}
 .notice-pin-label{font-size:12px;font-weight:700;color:#946200;margin-bottom:6px}
@@ -769,7 +768,7 @@ function enableBackgroundPush(){
     try{localStorage.setItem('schedul-er-push-enabled:'+activeClass,'1')}catch(_){}
     status.textContent='Background notifications enabled on this device.';
     button.textContent='Background notifications enabled on this device';
-    refreshNotifyStatus();
+    refreshNotifyStatus();refreshProfileNotificationStatus();
   }).catch(function(err){
     status.textContent='Could not enable push: '+(err&&err.message?err.message:'Please try again.');
   }).then(function(){button.disabled=false});
