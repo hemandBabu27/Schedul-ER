@@ -775,9 +775,20 @@ function enableBackgroundPush(button,status){
     pushEnabledOnThisDevice=true;
     try{localStorage.setItem('schedul-er-push-enabled:'+activeClass,'1')}catch(_){}
     refreshNotifyStatus();refreshProfileNotificationStatus();
+  }).then(function(){
+    pushEnabledOnThisDevice=true;
+    status.textContent='Notifications enabled on this device. Background alerts can arrive while the browser is closed.';
+    refreshNotifyStatus();
+    refreshProfileNotificationStatus();
   }).catch(function(err){
+    pushEnabledOnThisDevice=false;
     status.textContent='Could not enable notifications: '+(err&&err.message?err.message:'Please try again.');
-  }).then(function(){button.disabled=false;refreshProfileNotificationStatus()});
+    refreshProfileNotificationButtonOnly();
+  }).then(function(){button.disabled=false});
+}
+function refreshProfileNotificationButtonOnly(){
+  var push=$('profilePushToggle');
+  if(push)push.textContent=pushEnabledOnThisDevice?'Disable notifications':'Enable notifications';
 }
 $('profilePushToggle').addEventListener('click',function(){
   var b=this,status=$('profileNotifyStatus');
