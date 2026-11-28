@@ -424,7 +424,7 @@ function openForm(id,dateKey){
   [fTitle,fDate,fTime,fNotes,$('fStartDate'),$('fEndDate'),$('fRangeTime')].concat([].slice.call(document.querySelectorAll('input[name=color]'))).forEach(function(el){el.disabled=ro});
   saveBtn.hidden=ro;saveBtn.textContent=ev?'Save':'Add';
   delBtn.hidden=ro||!ev;
-  $('editLoginBtn').hidden=!ro;
+  $('editLoginBtn').hidden=!ro||!!session;
   $('cancelBtn').textContent=ro?'Close':'Cancel';
   $('overlay').hidden=false;
   (ro?$('cancelBtn'):fTitle).focus();
