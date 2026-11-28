@@ -615,7 +615,7 @@ function classForEmail(email){
   email=String(email||'').trim().toLowerCase();
   var admins={'er27@gmail.com':'23','er28@gmail.com':'24','er29@gmail.com':'25','er30@gmail.com':'26'};
   if(admins[email])return admins[email];
-  var m=email.match(/^(23|24|25|26)[^@]*@tkmce[.]ac[.]in$/);
+  var m=email.match(/^(23|24|25|26).+@tkmce[.]ac[.]in$/);
   return m?m[1]:null;
 }
 function isAdminEmail(email){
