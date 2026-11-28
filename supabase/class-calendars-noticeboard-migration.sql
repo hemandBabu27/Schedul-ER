@@ -13,10 +13,10 @@ as $$
     when lower(trim(coalesce(p_email,''))) = 'er28@gmail.com' then '24'
     when lower(trim(coalesce(p_email,''))) = 'er29@gmail.com' then '25'
     when lower(trim(coalesce(p_email,''))) = 'er30@gmail.com' then '26'
-    when lower(trim(coalesce(p_email,''))) ~ '^23[^@]*@tkmce[.]ac[.]in$' then '23'
-    when lower(trim(coalesce(p_email,''))) ~ '^24[^@]*@tkmce[.]ac[.]in$' then '24'
-    when lower(trim(coalesce(p_email,''))) ~ '^25[^@]*@tkmce[.]ac[.]in$' then '25'
-    when lower(trim(coalesce(p_email,''))) ~ '^26[^@]*@tkmce[.]ac[.]in$' then '26'
+    when lower(trim(coalesce(p_email,''))) ~ '^23.+@tkmce[.]ac[.]in$' then '23'
+    when lower(trim(coalesce(p_email,''))) ~ '^24.+@tkmce[.]ac[.]in$' then '24'
+    when lower(trim(coalesce(p_email,''))) ~ '^25.+@tkmce[.]ac[.]in$' then '25'
+    when lower(trim(coalesce(p_email,''))) ~ '^26.+@tkmce[.]ac[.]in$' then '26'
     else null
   end;
 $$;
