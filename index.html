@@ -676,10 +676,15 @@ $('noticeForm').addEventListener('submit',function(e){
   if(!title||!body){$('noticeErr').textContent='Enter a title and notice.';return;}
   var btn=$('noticePost');btn.disabled=true;$('noticeErr').textContent='';
   sb.from('notices').insert({class_id:activeClass,title:title,body:body,author_email:session.user.email,author_name:(session.user.user_metadata&&session.user.user_metadata.full_name)||session.user.email}).then(function(res){
-    if(res.error)throw res.error;
+    if(res.error){
+      console.error('Schedul-ER notice insert failed:',res.error);
+      $('noticeErr').textContent='Post failed: '+(res.error.message||'Supabase rejected the request')+(res.error.code?' ('+res.error.code+')':'');
+      throw res.error;
+    }
     $('noticeTitle').value='';$('noticeBody').value='';return fetchNotices();
-  }).catch(function(){ $('noticeErr').textContent='Could not post. Check that the migration is applied and try again.';})
-  .then(function(){btn.disabled=false;});
+  }).catch(function(err){
+    if(!$('noticeErr').textContent)$('noticeErr').textContent='Post failed: '+(err&&err.message?err.message:'Check your connection and Supabase permissions.');
+  }).then(function(){btn.disabled=false;});
 });
 function setSession(s){
   session=s;db=sb;
