@@ -699,6 +699,7 @@ function refreshPushStatus(){
     return;
   }
   if(!session||!activeClass){
+    pushEnabledOnThisDevice=false;
     button.disabled=true;status.textContent='Sign in to your class account before enabling background notifications.';return;
   }
   button.disabled=false;
@@ -706,8 +707,17 @@ function refreshPushStatus(){
     return reg.pushManager.getSubscription();
   }).then(function(sub){
     pushEnabledOnThisDevice=!!sub;
-    button.textContent=sub?'Background notifications enabled on this device':'Enable background notifications on this device';
-    status.textContent=sub?'This device is subscribed. Push notifications can arrive while the browser is closed.':'Enable once on each device to receive background notifications.';
+    if(sub){
+      var keys=sub.toJSON().keys||{};
+      return sb.from('push_subscriptions').upsert({
+        user_id:session.user.id,class_id:activeClass,endpoint:sub.endpoint,
+        p256dh:keys.p256dh,auth:keys.auth,user_agent:navigator.userAgent,updated_at:new Date().toISOString()
+      },{onConflict:'endpoint'}).then(function(res){if(res.error)throw res.error});
+    }
+  }).then(function(){
+    var enabled=pushEnabledOnThisDevice;
+    button.textContent=enabled?'Background notifications enabled on this device':'Enable background notifications on this device';
+    status.textContent=enabled?'This device is subscribed. Push notifications can arrive while the browser is closed.':'Enable once on each device to receive background notifications.';
   }).catch(function(){status.textContent='Could not check this device push subscription.'});
 }
 function enableBackgroundPush(){
