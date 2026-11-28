@@ -224,8 +224,8 @@ h1 span{font-weight:400;color:var(--ink-2)}
     <h2 id="noticeHead">Class noticeboard</h2>
     <p class="sub" id="noticeInfo">Sign in with your TKMCE class account to view and post notices.</p>
     <form class="notice-form" id="noticeForm" hidden>
-      <input id="noticeTitle" type="text" maxlength="120" placeholder="Notice title" required aria-label="Notice title">
-      <textarea id="noticeBody" maxlength="2000" placeholder="Write a notice for your class…" required aria-label="Notice message"></textarea>
+      <input id="noticeTitle" type="text" maxlength="120" placeholder="Notice title (optional for polls)" aria-label="Notice title">
+      <textarea id="noticeBody" maxlength="2000" placeholder="Write a notice for your class… (optional for polls)" aria-label="Notice message"></textarea>
       <label class="notice-poll-toggle"><input id="noticePollOn" type="checkbox"> Add a poll</label>
       <div id="noticePollFields" hidden>
         <input id="pollQuestion" type="text" maxlength="160" placeholder="Poll question">
@@ -946,7 +946,9 @@ function fetchNotices(){
         var authorName=String(n.author_name||'Member').trim()||'Member';
         var author=h('div',{class:'notice-author'});
         author.append(h('strong',{text:authorName}));
-        item.append(author,h('p',{text:(n.title?String(n.title)+' — ':'')+String(n.body||'')}),h('div',{class:'notice-meta',text:new Date(n.created_at).toLocaleString()}));
+        item.append(author);
+        if(n.title||n.body)item.append(h('p',{text:(n.title?String(n.title)+' — ':'')+String(n.body||'')}));
+        item.append(h('div',{class:'notice-meta',text:new Date(n.created_at).toLocaleString()}));
         var isNoticeAuthor=!!(email&&email===String(n.author_email||'').toLowerCase());
         var ownLike=likes.some(function(x){return String(x.notice_id)===String(n.id)&&String(x.user_email||'').toLowerCase()===email});
         var likeCount=likes.filter(function(x){return String(x.notice_id)===String(n.id)}).length;
@@ -1010,10 +1012,11 @@ $('noticeForm').addEventListener('submit',function(e){
   var title=$('noticeTitle').value.trim(), body=$('noticeBody').value.trim(), pollOn=$('noticePollOn').checked;
   var options=[].slice.call(document.querySelectorAll('.poll-option-input')).map(function(x){return x.value.trim()}).filter(Boolean);
   var question=$('pollQuestion').value.trim();
-  if(!title||!body){$('noticeErr').textContent='Enter a title and notice.';return;}
+  if(!pollOn&&(!title||!body)){$('noticeErr').textContent='Enter a title and notice, or enable Add a poll.';return;}
   if(pollOn&&(!question||options.length<2)){$('noticeErr').textContent='A poll needs a question and at least two options.';return;}
+  if(pollOn&&!title&&!body&&!question){$('noticeErr').textContent='Enter a poll question.';return;}
   var btn=$('noticePost');btn.disabled=true;$('noticeErr').textContent='';
-  var payload={class_id:activeClass,title:title,body:body,author_email:session.user.email,author_name:(session.user.user_metadata&&session.user.user_metadata.full_name)||session.user.email};
+  var payload={class_id:activeClass,title:title||null,body:body||null,author_email:session.user.email,author_name:(session.user.user_metadata&&session.user.user_metadata.full_name)||session.user.email};
   if(pollOn){payload.poll_question=question;payload.poll_options=options;}
   sb.from('notices').insert(payload).then(function(res){
     if(res.error){
