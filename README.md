@@ -76,3 +76,45 @@ Frontend checks only control what the interface displays. The Postgres RLS polic
 ## Source
 
 Based on [DFC-Calendar](https://github.com/hemandBabu27/DFC-Calendar), maintained separately in this repository.
+
+
+## Background Web Push notifications (all supported devices)
+
+The site now includes the browser-side Web Push setup:
+- manifest.json and sw.js register a service worker at the site root.
+- Each signed-in browser/device can create its own push subscription using the **Enable background notifications on this device** button.
+- supabase/push-notifications-migration.sql stores subscriptions, queues event create/update/delete notices, and records delivery separately for each device.
+- supabase/functions/send-push/index.ts sends queued notifications and 14-day, 1-day, and event-day reminders.
+
+### One-time owner setup (required before the button can work)
+
+1. Run supabase/push-notifications-migration.sql in Supabase → SQL Editor.
+2. On a computer with Node.js, run:
+   npx web-push generate-vapid-keys
+   Keep the private key secret. Do not commit it or put it in browser code.
+3. In the repository's index.html, replace REPLACE_WITH_VAPID_PUBLIC_KEY in PUSH_VAPID_PUBLIC_KEY with the generated public key only.
+4. Install the Supabase CLI and log in, then deploy:
+   supabase functions deploy send-push --project-ref begwxweywclyqmbxseih
+5. Add the generated values as Supabase Edge Function secrets (never GitHub files):
+   supabase secrets set VAPID_PUBLIC_KEY=YOUR_PUBLIC_KEY VAPID_PRIVATE_KEY=YOUR_PRIVATE_KEY VAPID_SUBJECT=mailto:YOUR_REAL_CONTACT_EMAIL --project-ref begwxweywclyqmbxseih
+   SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are supplied to Supabase Edge Functions by the platform.
+6. In Supabase, enable the pg_cron and pg_net database extensions. In Vault, create a secret named service_role_key whose value is the project's service-role key. Do not paste that key into this repository or the frontend.
+7. Run this once in SQL Editor to invoke delivery every five minutes:
+   select cron.schedule('schedul-er-web-push','*/5 * * * *',$$ select net.http_post(url := 'https://begwxweywclyqmbxseih.supabase.co/functions/v1/send-push', headers := jsonb_build_object('Content-Type','application/json','Authorization','Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name='service_role_key')), body := '{}'::jsonb); $$);
+
+### Enabling on each device
+
+- Deploy the updated site to https://schedul-er.vercel.app.
+- Sign in and press **Enable background notifications on this device** once on each browser/device. Accept the browser's notification prompt.
+- Android: Chrome supports background push.
+- Windows/macOS: current Chrome and Edge support background push; browser/OS notification settings must allow it.
+- iPhone/iPad: open the site in Safari, use **Share → Add to Home Screen**, open the installed Home Screen version, then enable notifications there. iOS/iPadOS 16.4 or later is required for Web Push on Home Screen web apps.
+
+The VAPID public key must match the private key configured in Supabase. If either key is changed later, users should re-enable notifications on their devices. Push notifications require network connectivity and a browser/OS push service; delivery cannot be guaranteed while a device is offline or has disabled background activity. Existing in-page Chrome notifications remain available as a fallback when push is not subscribed.
+
+### Important implementation notes
+
+- Subscriptions are stored per browser/device, so one user can receive the same class alert on multiple devices.
+- Supabase RLS limits subscription registration to the signed-in user's mapped class.
+- The Edge Function uses the service-role key only on the server and removes expired subscriptions when push services return 404/410.
+- Notification delivery is processed every five minutes; reminders are queued on that schedule, not at an exact minute.
